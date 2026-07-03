@@ -30,7 +30,7 @@ import subprocess
 import sys
 
 SCHEMA_VERSAO = "1"
-AGENTE_VERSAO = "1.4.0"
+AGENTE_VERSAO = "1.4.1"
 RAIZ = pathlib.Path(__file__).resolve().parent.parent   # raiz do repo do passaporte
 LAUDOS_DIR = RAIZ / "data" / "laudos"
 CADERNETA = RAIZ / "data" / "caderneta.json"
@@ -145,15 +145,49 @@ def ler_maquina(armazenamento_gb: float | None) -> dict:
 
 # ----------------------------------------------------------------- SSD/SMART
 
-def _smartctl(*args: str) -> dict:
+def _acha_smartctl() -> str | None:
+    """Procura o smartctl no PATH e, no Windows, na pasta padrao de instalacao
+    (instalacao recem-feita nao entra no PATH da sessao atual)."""
     exe = shutil.which("smartctl")
+    if exe:
+        return exe
+    if platform.system() == "Windows":
+        for cand in (r"C:\Program Files\smartmontools\bin\smartctl.exe",
+                     r"C:\Program Files (x86)\smartmontools\bin\smartctl.exe"):
+            if pathlib.Path(cand).exists():
+                return cand
+    return None
+
+
+def _instrucao_instalar_smart() -> str:
+    so = platform.system()
+    if so == "Windows":
+        return ("Num PowerShell aberto COMO ADMINISTRADOR (botao direito no PowerShell,\n"
+                "'Executar como administrador'), rode:\n"
+                "  winget install smartmontools.smartmontools\n"
+                "  (ou: choco install smartmontools -y)\n"
+                "e depois rode o lastro-agent de novo, no mesmo terminal de administrador.")
+    if so == "Darwin":
+        return "Instale com: brew install smartmontools"
+    return "Instale com: sudo apt install smartmontools (ou o equivalente da sua distro)"
+
+
+def _windows_sem_admin() -> bool:
+    if platform.system() != "Windows":
+        return False
+    try:
+        import ctypes
+        return ctypes.windll.shell32.IsUserAnAdmin() == 0
+    except Exception:
+        return False
+
+
+def _smartctl(*args: str) -> dict:
+    exe = _acha_smartctl()
     if not exe:
         raise LeituraError(
             "smartctl nao encontrado. O desgaste do SSD e a leitura obrigatoria do laudo.\n"
-            "Instale smartmontools:\n"
-            "  Ubuntu/Debian : sudo apt install smartmontools\n"
-            "  macOS         : brew install smartmontools\n"
-            "  Windows       : choco install smartmontools")
+            + _instrucao_instalar_smart())
     proc = subprocess.run([exe, "-j", *args], capture_output=True, text=True, timeout=60)
     try:
         dados = json.loads(proc.stdout or "{}")
@@ -173,6 +207,11 @@ def ler_ssd() -> tuple[dict, float | None]:
     """Desgaste do SSD via SMART. Orgao OBRIGATORIO: sem ele nao ha laudo.
     NVMe: percentage_used direto. SATA: wear leveling normalizado (attr 177/233).
     Retorna (orgao, capacidade_gb) para reaproveitar a capacidade na identidade."""
+    if _acha_smartctl() and _windows_sem_admin():
+        raise LeituraError(
+            "no Windows a leitura SMART exige administrador.\n"
+            "Feche este terminal, abra o PowerShell com botao direito >\n"
+            "'Executar como administrador', volte a esta pasta e rode o comando de novo.")
     scan = _smartctl("--scan")
     dispositivos = scan.get("devices", [])
     if not dispositivos:

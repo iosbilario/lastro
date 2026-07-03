@@ -230,6 +230,9 @@
   }
   .toast.show{opacity:1;transform:translate(-50%,0)}
 
+  /* modo leitor (?verificar): o certificado que o comprador abre, sem acoes de dono */
+  body.leitor #reBtn, body.leitor #simBtn{display:none}
+
   @media(prefers-reduced-motion:reduce){
     *{transition:none !important;animation:none !important}
   }
@@ -651,10 +654,18 @@
     };
   }
 
-  function renderSelo(latest,laudos){
+  function renderSelo(latest,laudos,manifesto,releases){
     $('seloHash').textContent=latest.agente.sha256.slice(0,7);
     $('seloCarimbo').textContent=latest.aferido_em;
-    $('seloScript').textContent=latest.agente.nome+" v"+latest.agente.versao+" · sha256 "+latest.agente.sha256.slice(0,12)+"…";
+    var nomeVer=latest.agente.nome+" v"+latest.agente.versao;
+    var sha=latest.agente.sha256;
+    if(manifesto.sample){
+      $('seloScript').textContent=nomeVer+" · dados de exemplo";
+    }else if(releases&&releases.releases&&releases.releases[sha]){
+      $('seloScript').innerHTML=nomeVer+' · <span style="color:var(--verde-lastro)">script oficial ✓</span>';
+    }else{
+      $('seloScript').innerHTML=nomeVer+' · <span style="color:var(--vencido)">sha256 fora das releases conhecidas ✗</span>';
+    }
     $('seloLaudos').textContent=laudos.length+" commit"+(laudos.length>1?"s":"")+" · inforjável";
 
     /* carimbo do commit: só o GitHub pode dar. No Pages, busca o commit real
@@ -681,12 +692,15 @@
   var base=location.pathname.indexOf('/site/')>=0?'..':'.';
   function j(url){ return fetch(url).then(function(r){ if(!r.ok) throw new Error(url+" ("+r.status+")"); return r.json(); }); }
 
+  if(/(^|[?&])verificar([=&]|$)/.test(location.search)) document.body.classList.add('leitor');
+
   Promise.all([
     j(base+"/data/caderneta.json"),
     j(base+"/data/latest.json"),
-    j(base+"/data/observatorio.json").catch(function(){ return null; })
+    j(base+"/data/observatorio.json").catch(function(){ return null; }),
+    j(base+"/agent/releases.json").catch(function(){ return null; })
   ]).then(function(res){
-    var manifesto=res[0], latest=res[1], obs=res[2];
+    var manifesto=res[0], latest=res[1], obs=res[2], releases=res[3];
     return Promise.all(manifesto.laudos.map(function(n){ return j(base+"/data/laudos/"+n); }))
       .then(function(laudos){
         laudos.sort(function(a,b){ return a.aferido_em<b.aferido_em?-1:1; });
@@ -697,7 +711,7 @@
         renderCaderneta(laudos,gargalo);
         renderObservatorio(latest,laudos,obs,gargalo);
         renderReco(latest,laudos);
-        renderSelo(latest,laudos);
+        renderSelo(latest,laudos,manifesto,releases);
       });
   }).catch(function(e){
     var el=$('erro');
@@ -708,8 +722,11 @@
 
   /* ---------- ações ---------- */
   $('copyBtn').addEventListener('click',function(){
-    try{ navigator.clipboard&&navigator.clipboard.writeText(location.href); }catch(e){}
-    ping("link copiado · cole no anúncio");
+    var publicado=/\.github\.io$/.test(location.hostname);
+    var url=location.origin+location.pathname+"?verificar";
+    try{ navigator.clipboard&&navigator.clipboard.writeText(url); }catch(e){}
+    ping(publicado?"link do certificado copiado · cole no anúncio"
+                  :"link local copiado · publique no GitHub para valer como certificado");
   });
   $('reBtn').addEventListener('click',function(){
     ping("na sua máquina: python3 agent/lastro_agent.py --emitir --commit");

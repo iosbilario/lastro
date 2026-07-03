@@ -1,0 +1,47 @@
+# Publica o passaporte no GitHub Pages. O site na raiz, os dados em /data,
+# o contrato (schema) e as releases do agente junto: tudo que o Certificado
+# precisa e estatico e versionado, zero servidor.
+name: publicar-site
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "site/**"
+      - "data/**"
+      - "agent/releases.json"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: montar o site
+        run: |
+          mkdir -p _site
+          cp -r site/* _site/
+          cp -r data _site/
+          mkdir -p _site/agent
+          cp agent/releases.json _site/agent/ 2>/dev/null || true
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

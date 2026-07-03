@@ -26,7 +26,8 @@ jobs:
       #   4. calcular por modelo: amostra, desgaste mediano/mes, percentis p10/p50/p90
       #   5. escrever data/observatorio.json
       - name: agregar passaportes
-        env: { GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "TODO: python scripts/agregar.py"
       - name: comitar agregado

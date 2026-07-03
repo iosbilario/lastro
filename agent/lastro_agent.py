@@ -30,7 +30,7 @@ import subprocess
 import sys
 
 SCHEMA_VERSAO = "1"
-AGENTE_VERSAO = "1.6.0"
+AGENTE_VERSAO = "1.6.1"
 RAIZ = pathlib.Path(__file__).resolve().parent.parent   # raiz do repo do passaporte
 LAUDOS_DIR = RAIZ / "data" / "laudos"
 CADERNETA = RAIZ / "data" / "caderneta.json"
@@ -868,6 +868,24 @@ def fluxo_um_clique() -> int:
         print("  anexe este arquivo no anuncio; o comprador confere em "
               f"{SITE}/conferir.html")
         webbrowser.open(arquivo.as_uri())
+
+        # A ponte para o coletivo, sempre opt-in: o certificado ja esta pronto;
+        # o link publico e a doacao anonima ao Observatorio sao um extra.
+        print("\nquer tambem o link publico do passaporte? Ele vira um historico")
+        print("vivo na nuvem e doa os dados anonimos (so modelo e desgaste) para o")
+        print("Observatorio, que melhora o prognostico de todo mundo. Usa (ou cria)")
+        print("uma conta GitHub gratuita.")
+        try:
+            extra = input("  publicar tambem? [s/N]: ").strip().lower()
+        except EOFError:
+            extra = ""
+        if extra == "s":
+            token = _autorizar_github()
+            print("    publicando o laudo (o commit e o carimbo)...")
+            url = publicar_um_clique(laudo, token)
+            print(f"\nlink publico:\n  {url}")
+            print(f"  versao para o anuncio: {url}&certificado")
+            webbrowser.open(url)
     return 0
 
 

@@ -35,6 +35,15 @@
       "versao": "1.6.0",
       "registrado_em": "2026-07-03",
       "artefato": "lastro.exe"
+    },
+    "da8f1ef0a3d7b4030321b107332db0667629f9073bfcec2647d215f9aed65561": {
+      "versao": "1.6.1",
+      "registrado_em": "2026-07-03"
+    },
+    "37bbf7b0ecb265f02e525a1e7dd8052e2e6431423f063eca1ccff3f4a5c7e90a": {
+      "versao": "1.6.1",
+      "registrado_em": "2026-07-03",
+      "artefato": "lastro.exe"
     }
   }
 }

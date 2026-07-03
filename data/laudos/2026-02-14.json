@@ -1,0 +1,41 @@
+{
+  "versao": "1",
+  "serie": "BR-N4-8831",
+  "maquina": {
+    "modelo": "Dell Inspiron 15 3583",
+    "cpu": "Intel i5-8265U",
+    "ram_gb": 8,
+    "armazenamento_gb": 240,
+    "so": "Ubuntu 24.04",
+    "comprado_em": "2019-03"
+  },
+  "aferido_em": "2026-02-14T14:22:07Z",
+  "agente": {
+    "nome": "lastro-agent",
+    "versao": "1.4.0",
+    "sha256": "34d9c567d04d051d833a2395b9b2c1e0386f7a02bf19db2fbf55f2ff4d046d53"
+  },
+  "orgaos": {
+    "ssd": {
+      "desgaste": 0.37,
+      "valor_cru": "Percentage Used: 37%",
+      "estado": "saudavel"
+    },
+    "bateria": {
+      "desgaste": 0.383,
+      "recargas": 383,
+      "saude_pct": 90.0,
+      "estado": "saudavel"
+    },
+    "memoria": {
+      "desgaste": 0.78,
+      "swap_frequente": true,
+      "estado": "atencao"
+    },
+    "termico": {
+      "desgaste": 0.22,
+      "throttle": false,
+      "estado": "saudavel"
+    }
+  }
+}

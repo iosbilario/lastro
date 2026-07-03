@@ -1,0 +1,38 @@
+# Observatorio : agrega todos os passaportes publicos numa curva de mortalidade por modelo.
+# 100% GitHub: descobre passaportes pela topic `lastro-passaporte` via Search API,
+# le cada latest.json, anonimiza + agrega, e comita data/observatorio.json.
+# O cron noturno e o "servidor". O historico de commits deste arquivo e a serie temporal do parque.
+name: observatorio
+
+on:
+  schedule:
+    - cron: "0 3 * * *"   # 03:00 UTC (00:00 BRT). TODO: confirmar fuso desejado.
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  agregar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      # TODO(claude-code): implementar scripts/agregar.py
+      #   1. GET https://api.github.com/search/repositories?q=topic:lastro-passaporte
+      #   2. para cada repo, baixar data/latest.json (raw.githubusercontent)
+      #   3. anonimizar (descartar serie individual; agrupar por modelo)
+      #   4. calcular por modelo: amostra, desgaste mediano/mes, percentis p10/p50/p90
+      #   5. escrever data/observatorio.json
+      - name: agregar passaportes
+        env: { GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
+        run: |
+          echo "TODO: python scripts/agregar.py"
+      - name: comitar agregado
+        run: |
+          git config user.name  "lastro-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/observatorio.json || true
+          git commit -m "observatorio: agregacao $(date -u +%F)" || echo "sem mudancas"
+          git push || true

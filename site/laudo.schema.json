@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://lastro.dev/laudo.schema.json",
+  "title": "Laudo Lastro",
+  "description": "Uma afericao de saude de um equipamento. Cada laudo e um commit. O historico de commits deste arquivo e o banco de dados temporal (a Caderneta).",
+  "type": "object",
+  "required": ["versao", "serie", "maquina", "aferido_em", "agente", "orgaos"],
+  "additionalProperties": false,
+  "properties": {
+    "versao": { "type": "string", "description": "Versao do schema do laudo", "const": "1" },
+    "serie": {
+      "type": "string",
+      "description": "Identificador estavel e anonimo da maquina, derivado de hash de identificadores de hardware. NUNCA um serial de fabrica em claro.",
+      "pattern": "^BR-[A-Z0-9]{2}-[A-Z0-9]{4}$"
+    },
+    "maquina": {
+      "type": "object",
+      "required": ["modelo", "cpu", "ram_gb", "so"],
+      "properties": {
+        "modelo": { "type": "string", "example": "Dell Inspiron 15 3583" },
+        "cpu": { "type": "string", "example": "Intel i5-8265U" },
+        "ram_gb": { "type": "number", "example": 8 },
+        "armazenamento_gb": { "type": "number", "example": 240 },
+        "so": { "type": "string", "example": "Ubuntu 24.04" },
+        "comprado_em": { "type": ["string", "null"], "description": "AAAA-MM, se informado pelo usuario", "example": "2019-03" }
+      }
+    },
+    "aferido_em": { "type": "string", "format": "date-time", "description": "Momento da leitura. O carimbo de verdade e o timestamp do commit; este e informativo." },
+    "agente": {
+      "type": "object",
+      "required": ["nome", "versao", "sha256"],
+      "description": "Proveniencia. Permite ao verificador confirmar que o laudo saiu do script open-source oficial, e nao foi editado a mao.",
+      "properties": {
+        "nome": { "type": "string", "const": "lastro-agent" },
+        "versao": { "type": "string", "example": "1.4.0" },
+        "sha256": { "type": "string", "description": "sha256 do binario/script que gerou este laudo" }
+      }
+    },
+    "orgaos": {
+      "type": "object",
+      "description": "Leitura direta do hardware. Cada orgao tem um valor cru, um percentual de desgaste normalizado (0=novo, 1=fim de vida) e um estado.",
+      "required": ["ssd"],
+      "properties": {
+        "ssd": { "$ref": "#/$defs/orgao_desgaste" },
+        "bateria": { "$ref": "#/$defs/orgao_bateria" },
+        "memoria": { "$ref": "#/$defs/orgao_pressao" },
+        "termico": { "$ref": "#/$defs/orgao_termico" }
+      }
+    },
+    "prognostico": {
+      "type": "object",
+      "description": "Estimativa derivada. O agente pode preencher uma estimativa local; o Observatorio refina com a curva da frota.",
+      "properties": {
+        "meses_restantes": { "type": "number", "example": 28 },
+        "margem_meses": { "type": "number", "example": 5 },
+        "gargalo": { "type": "string", "enum": ["ssd", "bateria", "memoria", "termico"], "example": "ssd" },
+        "base_amostral": { "type": "integer", "description": "Quantas maquinas semelhantes no Observatorio embasaram a estimativa", "example": 1284 }
+      }
+    }
+  },
+  "$defs": {
+    "estado": { "type": "string", "enum": ["saudavel", "atencao", "critico"] },
+    "orgao_desgaste": {
+      "type": "object",
+      "required": ["desgaste", "estado"],
+      "properties": {
+        "desgaste": { "type": "number", "minimum": 0, "maximum": 1, "description": "0 novo, 1 fim de vida. Para NVMe vem do 'Percentage Used' do SMART." },
+        "valor_cru": { "type": "string", "example": "Percentage Used: 62%" },
+        "estado": { "$ref": "#/$defs/estado" }
+      }
+    },
+    "orgao_bateria": {
+      "type": "object",
+      "required": ["desgaste", "estado"],
+      "properties": {
+        "desgaste": { "type": "number", "minimum": 0, "maximum": 1 },
+        "recargas": { "type": "integer", "description": "Contagem de recargas completas reportada pela bateria", "example": 412 },
+        "saude_pct": { "type": "number", "description": "Capacidade atual / capacidade de projeto", "example": 89 },
+        "estado": { "$ref": "#/$defs/estado" }
+      }
+    },
+    "orgao_pressao": {
+      "type": "object",
+      "required": ["desgaste", "estado"],
+      "properties": {
+        "desgaste": { "type": "number", "minimum": 0, "maximum": 1, "description": "Proxy de pressao de memoria: frequencia de swap sob carga tipica" },
+        "swap_frequente": { "type": "boolean" },
+        "estado": { "$ref": "#/$defs/estado" }
+      }
+    },
+    "orgao_termico": {
+      "type": "object",
+      "required": ["desgaste", "estado"],
+      "properties": {
+        "desgaste": { "type": "number", "minimum": 0, "maximum": 1 },
+        "throttle": { "type": "boolean" },
+        "estado": { "$ref": "#/$defs/estado" }
+      }
+    }
+  }
+}

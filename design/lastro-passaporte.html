@@ -1,0 +1,475 @@
+<!--
+  LASTRO — Passaporte de Saúde do Equipamento
+  Mockup single-file. Direção visual: cédula / laudo cautelar / cartório × commit assinado.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lastro — Passaporte de Saúde</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --cedula:#E6E9DC;        /* papel-cédula esverdeado (NÃO creme quente) */
+    --cedula-2:#DEE2D2;
+    --intaglio:#15251C;      /* tinta-cofre: verde-quase-preto de segurança */
+    --intaglio-soft:#3a4d41;
+    --verde-lastro:#1E7B45;  /* verde-cédula = "verificado / lastreado" (também o verde do commit) */
+    --desgaste:#A9741A;      /* âmbar: só como cor de dado (medidor de desgaste) */
+    --vencido:#8C2A22;       /* oxblood: fim de vida, usado com parcimônia */
+    --linha:rgba(21,37,28,.16);
+    --linha-forte:rgba(21,37,28,.34);
+    --desk:#0e1a14;          /* a mesa: o laudo pousa sobre um verde escuro, como objeto físico */
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:
+      radial-gradient(120% 90% at 50% -10%, #16261d 0%, var(--desk) 60%, #0a130e 100%);
+    color:var(--intaglio);
+    font-family:"Spectral",Georgia,serif;
+    line-height:1.5;
+    padding:40px 18px 72px;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+  }
+  ::selection{background:var(--intaglio);color:var(--cedula)}
+
+  /* ---------- o documento ---------- */
+  .doc{
+    width:100%;
+    max-width:620px;
+    background:
+      linear-gradient(var(--cedula),var(--cedula));
+    position:relative;
+    box-shadow:0 40px 80px -30px rgba(0,0,0,.7), 0 4px 0 rgba(0,0,0,.25);
+    border:1px solid rgba(0,0,0,.35);
+  }
+  /* guilhochê sutil de fundo, injetado via JS (svg data-uri) */
+  .doc::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:var(--guilloche-bg);
+    background-size:340px 340px;
+    opacity:.5;mix-blend-mode:multiply;
+  }
+  .frame{position:relative;padding:26px 30px 30px}
+  /* moldura em intaglio */
+  .doc::after{
+    content:"";position:absolute;inset:9px;pointer-events:none;
+    border:1.5px solid var(--linha-forte);
+  }
+
+  /* ---------- cabeçalho ---------- */
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;position:relative}
+  .mark{display:flex;flex-direction:column;gap:2px}
+  .wordmark{
+    font-family:"Fraunces",serif;font-weight:600;letter-spacing:.14em;
+    font-size:15px;text-transform:uppercase;color:var(--intaglio);
+    display:flex;align-items:center;gap:8px;
+  }
+  .wordmark svg{display:block}
+  .kicker{
+    font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--intaglio-soft);
+  }
+  .serial{text-align:right;font-family:"Space Mono",monospace;font-size:10.5px;color:var(--intaglio-soft);line-height:1.7}
+  .serial b{color:var(--intaglio);font-weight:700;letter-spacing:.04em}
+
+  .rule{height:1.5px;background:var(--linha-forte);margin:18px 0 0;position:relative}
+  .rule.thin{height:1px;background:var(--linha);margin:20px 0}
+
+  /* ---------- identidade da máquina ---------- */
+  .ident{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-top:16px;flex-wrap:wrap}
+  .machine{font-family:"Fraunces",serif;font-size:19px;font-weight:500;letter-spacing:.005em}
+  .machine small{display:block;font-family:"Space Mono",monospace;font-size:10px;font-weight:400;color:var(--intaglio-soft);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
+  .emitido{font-family:"Space Mono",monospace;font-size:11px;color:var(--intaglio-soft);text-align:right;line-height:1.7}
+  .emitido b{color:var(--intaglio);font-weight:700}
+
+  /* ---------- a denominação (prognóstico) ---------- */
+  .denom{
+    margin-top:22px;text-align:center;position:relative;
+    padding:8px 0 4px;
+  }
+  .denom .eyebrow{
+    font-family:"Space Mono",monospace;font-size:10.5px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--intaglio-soft);
+  }
+  .denom .value{
+    font-family:"Fraunces",serif;font-weight:600;
+    font-size:clamp(40px,10vw,60px);line-height:1.02;letter-spacing:-.01em;
+    margin:6px 0 2px;color:var(--intaglio);
+    font-variant-numeric:lining-nums;
+  }
+  .denom .value .approx{font-size:.55em;vertical-align:.18em;color:var(--intaglio-soft);font-weight:500}
+  .denom .sub{font-size:13.5px;color:var(--intaglio)}
+  .denom .conf{
+    font-family:"Space Mono",monospace;font-size:10.5px;color:var(--intaglio-soft);
+    margin-top:7px;letter-spacing:.02em;
+  }
+  .denom .conf b{color:var(--verde-lastro);font-weight:700}
+
+  /* ---------- órgãos vitais ---------- */
+  .sec-label{
+    font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--intaglio-soft);
+    display:flex;align-items:center;gap:10px;margin:0 0 12px;
+  }
+  .sec-label::after{content:"";flex:1;height:1px;background:var(--linha)}
+
+  .organ{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--linha)}
+  .organ:last-child{border-bottom:0}
+  .organ .name{font-size:14px;font-weight:500}
+  .organ .name span{font-family:"Space Mono",monospace;font-size:10px;color:var(--intaglio-soft);text-transform:uppercase;letter-spacing:.08em;margin-left:8px}
+  .organ .read{font-family:"Space Mono",monospace;font-size:13px;font-weight:700;text-align:right;letter-spacing:.02em}
+  .meter{grid-column:1 / -1;height:7px;background:rgba(21,37,28,.09);position:relative;overflow:hidden;border:1px solid var(--linha)}
+  .meter i{position:absolute;inset:0 auto 0 0;display:block;transition:width .7s cubic-bezier(.2,.7,.2,1)}
+  /* hachura de intaglio dentro da barra */
+  .meter i::after{content:"";position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.22) 0 1px,transparent 1px 4px)}
+  .ok  i{background:var(--verde-lastro)}
+  .warn i{background:var(--desgaste)}
+  .bad i{background:var(--vencido)}
+  .tag{font-family:"Space Mono",monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border:1px solid currentColor;border-radius:1px;margin-left:8px;vertical-align:1px}
+  .tag.ok{color:var(--verde-lastro)} .tag.warn{color:var(--desgaste)} .tag.bad{color:var(--vencido)}
+
+  /* ---------- caderneta / curva (hodômetro) ---------- */
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  @media(max-width:520px){.two{grid-template-columns:1fr;gap:22px}}
+  .chart{position:relative}
+  .chart svg{display:block;width:100%;height:auto;overflow:visible}
+  .chart .cap{font-family:"Space Mono",monospace;font-size:9.5px;color:var(--intaglio-soft);margin-top:6px;letter-spacing:.02em}
+  .chart .cap b{color:var(--intaglio)}
+
+  /* ---------- recomendação-lastro ---------- */
+  .reco{
+    margin-top:4px;border:1.5px solid var(--linha-forte);
+    background:rgba(30,123,69,.06);
+    padding:14px 16px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  }
+  .reco .txt{max-width:62%}
+  .reco .txt h4{margin:0 0 3px;font-family:"Fraunces",serif;font-weight:600;font-size:16px}
+  .reco .txt p{margin:0;font-size:12.5px;color:var(--intaglio)}
+  .reco .txt p b{color:var(--verde-lastro)}
+  .btn{
+    font-family:"Space Mono",monospace;font-size:11px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;cursor:pointer;
+    background:var(--intaglio);color:var(--cedula);border:1.5px solid var(--intaglio);
+    padding:9px 14px;border-radius:1px;transition:transform .12s ease, background .15s ease;
+  }
+  .btn:hover{transform:translateY(-1px)}
+  .btn:active{transform:translateY(0)}
+  .btn.ghost{background:transparent;color:var(--intaglio)}
+  .btn:focus-visible{outline:2px solid var(--verde-lastro);outline-offset:2px}
+
+  /* ---------- selo de verificação (a assinatura) ---------- */
+  .seal-wrap{
+    margin-top:22px;display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;
+    border-top:1.5px solid var(--linha-forte);padding-top:20px;
+  }
+  @media(max-width:520px){.seal-wrap{grid-template-columns:1fr;justify-items:center;text-align:center}}
+  .seal{width:104px;height:104px;position:relative;flex-shrink:0}
+  .seal svg{position:absolute;inset:0;width:100%;height:100%}
+  .seal .core{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  }
+  .seal .core .chk{color:var(--verde-lastro)}
+  .seal .core .hash{font-family:"Space Mono",monospace;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--intaglio)}
+  .seal .core .word{font-family:"Space Mono",monospace;font-size:6.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--intaglio-soft)}
+  .verif h3{margin:0 0 6px;font-family:"Fraunces",serif;font-weight:600;font-size:15px}
+  .verif dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-family:"Space Mono",monospace;font-size:10.5px}
+  .verif dt{color:var(--intaglio-soft);letter-spacing:.04em}
+  .verif dd{margin:0;color:var(--intaglio);font-weight:700;letter-spacing:.02em}
+  .verif dd a{color:var(--verde-lastro);text-decoration:none;border-bottom:1px solid rgba(30,123,69,.4)}
+  .actions{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
+  @media(max-width:520px){.actions{justify-content:center}}
+
+  /* microtext / rodapé cartorial */
+  .micro{
+    margin-top:18px;font-family:"Space Mono",monospace;font-size:8.5px;letter-spacing:.06em;
+    color:var(--intaglio-soft);text-transform:uppercase;text-align:center;line-height:1.9;
+    border-top:1px solid var(--linha);padding-top:12px;
+    word-spacing:2px;
+  }
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
+    background:var(--intaglio);color:var(--cedula);
+    font-family:"Space Mono",monospace;font-size:11.5px;letter-spacing:.04em;
+    padding:10px 16px;border-radius:2px;opacity:0;pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease;
+    box-shadow:0 10px 30px -10px rgba(0,0,0,.6);
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media(prefers-reduced-motion:reduce){
+    *{transition:none !important;animation:none !important}
+  }
+</style>
+
+<main class="doc" id="doc">
+  <div class="frame">
+
+    <!-- cabeçalho -->
+    <header class="top">
+      <div class="mark">
+        <span class="wordmark">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="1" y="1" width="14" height="14" fill="none" stroke="#15251C" stroke-width="1.3"/>
+            <path d="M4 11 L4 4 M4 11 L12 11" fill="none" stroke="#15251C" stroke-width="1.6"/>
+          </svg>
+          Lastro
+        </span>
+        <span class="kicker">Passaporte de saúde do equipamento</span>
+      </div>
+      <div class="serial">
+        SÉRIE <b>BR-N4-8831</b><br>
+        LAUDO <b>#0006</b> · v1<br>
+        emissão contínua
+      </div>
+    </header>
+
+    <div class="rule"></div>
+
+    <!-- identidade -->
+    <section class="ident">
+      <div class="machine">
+        Dell Inspiron 15 3583
+        <small>i5-8265U · 8 GB · SSD 240 GB · comprado 03/2019</small>
+      </div>
+      <div class="emitido">
+        última aferição<br><b>03 jul 2026</b><br>
+        6ª leitura · 39 meses
+      </div>
+    </section>
+
+    <!-- a denominação: prognóstico -->
+    <section class="denom">
+      <div class="eyebrow">Prognóstico de vida útil restante</div>
+      <div class="value" id="prog"><span class="approx">≈</span> 2 anos e 4 meses</div>
+      <div class="sub" id="progSub">no ritmo de uso atual, o gargalo é o SSD (célula NAND gasta)</div>
+      <div class="conf">estimado sobre <b>1.284</b> máquinas semelhantes no Observatório · margem ±5 meses</div>
+    </section>
+
+    <div class="rule thin"></div>
+
+    <!-- órgãos vitais -->
+    <section>
+      <p class="sec-label">Órgãos vitais · leitura direta do hardware (SMART)</p>
+
+      <div class="organ warn" id="ssdOrgan">
+        <div class="name">SSD <span>desgaste NAND</span> <em class="tag warn" id="ssdTag">crítico</em></div>
+        <div class="read" id="ssdRead">62% gasto</div>
+        <div class="meter"><i id="ssdBar" style="width:62%"></i></div>
+      </div>
+
+      <div class="organ ok">
+        <div class="name">Bateria <span>ciclos de carga</span> <em class="tag ok">saudável</em></div>
+        <div class="read">412 ciclos · 89%</div>
+        <div class="meter"><i style="width:41%"></i></div>
+      </div>
+
+      <div class="organ warn">
+        <div class="name">Memória <span>pressão / swap</span> <em class="tag warn">apertada</em></div>
+        <div class="read">8 GB · swap frequente</div>
+        <div class="meter"><i style="width:78%"></i></div>
+      </div>
+
+      <div class="organ ok">
+        <div class="name">Térmico <span>throttling</span> <em class="tag ok">ok</em></div>
+        <div class="read">sem throttle</div>
+        <div class="meter"><i style="width:22%"></i></div>
+      </div>
+    </section>
+
+    <div class="rule thin"></div>
+
+    <!-- caderneta + observatório -->
+    <div class="two">
+      <div class="chart">
+        <p class="sec-label">Caderneta</p>
+        <svg viewBox="0 0 240 92" role="img" aria-label="Desgaste do SSD ao longo das aferições, subindo de 31% em janeiro para 62% em julho.">
+          <!-- eixo -->
+          <line x1="6" y1="82" x2="234" y2="82" stroke="var(--linha)" stroke-width="1"/>
+          <!-- curva de desgaste -->
+          <polyline id="wearLine" fill="none" stroke="var(--intaglio)" stroke-width="2"
+            points="18,60 60,54 102,46 144,38 186,28 222,20"/>
+          <!-- pontos = commits -->
+          <g id="commitDots" fill="var(--cedula)" stroke="var(--intaglio)" stroke-width="1.6">
+            <circle cx="18" cy="60" r="3.2"/><circle cx="60" cy="54" r="3.2"/>
+            <circle cx="102" cy="46" r="3.2"/><circle cx="144" cy="38" r="3.2"/>
+            <circle cx="186" cy="28" r="3.2"/>
+            <circle cx="222" cy="20" r="4" fill="var(--desgaste)" stroke="var(--intaglio)"/>
+          </g>
+          <text x="18" y="90" font-family="Space Mono" font-size="8" fill="var(--intaglio-soft)">jan</text>
+          <text x="210" y="90" font-family="Space Mono" font-size="8" fill="var(--intaglio-soft)">jul</text>
+        </svg>
+        <p class="cap">cada ponto = <b>1 commit</b> no seu passaporte.<br>o histórico do git <b>é</b> a curva.</p>
+      </div>
+
+      <div class="chart">
+        <p class="sec-label">Observatório</p>
+        <svg viewBox="0 0 240 92" role="img" aria-label="Distribuição de desgaste do modelo Inspiron 15 3583. Sua máquina está na faixa que envelhece mais rápido que a média.">
+          <!-- curva de distribuição (sino) -->
+          <path d="M6 82 C 60 82, 74 22, 120 22 S 180 82, 234 82 Z"
+                fill="rgba(21,37,28,.08)" stroke="var(--linha-forte)" stroke-width="1.4"/>
+          <!-- média -->
+          <line x1="120" y1="30" x2="120" y2="82" stroke="var(--intaglio-soft)" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="120" y="20" text-anchor="middle" font-family="Space Mono" font-size="8" fill="var(--intaglio-soft)">média</text>
+          <!-- você -->
+          <line x1="176" y1="52" x2="176" y2="82" stroke="var(--vencido)" stroke-width="1.6"/>
+          <circle cx="176" cy="52" r="4" fill="var(--vencido)"/>
+          <text x="176" y="46" text-anchor="middle" font-family="Space Mono" font-size="8" font-weight="700" fill="var(--vencido)">você</text>
+        </svg>
+        <p class="cap">seu Inspiron gasta o SSD <b>~18% mais rápido</b> que a média da frota — uso pesado de swap.</p>
+      </div>
+    </div>
+
+    <div class="rule thin"></div>
+
+    <!-- recomendação-lastro -->
+    <section class="reco" id="reco">
+      <div class="txt">
+        <h4 id="recoTitle">Uma troca devolve 3 anos</h4>
+        <p id="recoBody">Trocar o SSD (240 GB → 480 GB, <b>~R$ 190</b>) zera o desgaste e alivia o swap. Prognóstico salta de 2a4m para <b>5+ anos</b>. Comprar máquina nova: ~R$ 3.400.</p>
+      </div>
+      <button class="btn" id="simBtn" aria-pressed="false">Simular a troca</button>
+    </section>
+
+    <!-- selo de verificação: a assinatura -->
+    <section class="seal-wrap">
+      <div class="seal" aria-hidden="true">
+        <svg id="guillocheSeal" viewBox="0 0 104 104"></svg>
+        <div class="core">
+          <span class="chk">
+            <svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 9.5 L7 13.5 L15 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span class="hash">a1b9f3c</span>
+          <span class="word">verificado</span>
+        </div>
+      </div>
+      <div class="verif">
+        <h3>Selo de verificação</h3>
+        <dl>
+          <dt>commit</dt><dd><a href="#" onclick="return false">a1b9f3c · GitHub</a></dd>
+          <dt>carimbo</dt><dd>2026-07-03T14:22:07Z</dd>
+          <dt>script</dt><dd>lastro-agent v1.4 · sha256 verificável</dd>
+          <dt>laudos</dt><dd>6 commits · inforjável</dd>
+        </dl>
+        <div class="actions">
+          <button class="btn" id="copyBtn">Copiar link do laudo</button>
+          <button class="btn ghost" id="reBtn">Re-aferir agora</button>
+        </div>
+      </div>
+    </section>
+
+    <p class="micro">
+      Este laudo é um artefato público no GitHub · a autenticidade vem do carimbo temporal do commit, não de nós ·
+      leitura feita por script open-source no seu equipamento · nenhum dado sai sem o seu commit · lastro · lastro · lastro
+    </p>
+
+  </div>
+</main>
+
+<div class="toast" id="toast">link do laudo copiado</div>
+
+<script>
+(function(){
+  // ---------- guilhochê: roseta do selo (hipotrocoide) ----------
+  function guilloche(R, r, d, turns, cx, cy, scale){
+    var pts=[], steps=turns*360;
+    for(var i=0;i<=steps;i++){
+      var t=i*Math.PI/180;
+      var x=(R-r)*Math.cos(t)+d*Math.cos((R-r)/r*t);
+      var y=(R-r)*Math.sin(t)-d*Math.sin((R-r)/r*t);
+      pts.push((cx+x*scale).toFixed(2)+","+(cy+y*scale).toFixed(2));
+    }
+    return pts.join(" ");
+  }
+  var seal=document.getElementById('guillocheSeal');
+  if(seal){
+    var ns="http://www.w3.org/2000/svg";
+    // anéis externos
+    [ {rr:52,c:'#15251C',w:1.4},{rr:47,c:'#1E7B45',w:.9} ].forEach(function(o){
+      var c=document.createElementNS(ns,'circle');
+      c.setAttribute('cx',52);c.setAttribute('cy',52);c.setAttribute('r',o.rr);
+      c.setAttribute('fill','none');c.setAttribute('stroke',o.c);c.setAttribute('stroke-width',o.w);
+      seal.appendChild(c);
+    });
+    // rosetas guilhochê
+    [ {p:[44,7,18,7],col:'rgba(21,37,28,.55)',w:.55,s:1.0},
+      {p:[40,9,14,5],col:'rgba(30,123,69,.6)',w:.5,s:1.0} ].forEach(function(g){
+      var pl=document.createElementNS(ns,'polyline');
+      pl.setAttribute('points',guilloche(g.p[0],g.p[1],g.p[2],g.p[3],52,52,g.s));
+      pl.setAttribute('fill','none');pl.setAttribute('stroke',g.col);pl.setAttribute('stroke-width',g.w);
+      seal.appendChild(pl);
+    });
+  }
+
+  // ---------- guilhochê de fundo (data-uri) ----------
+  function bgSVG(){
+    var lines="";
+    for(var i=0;i<10;i++){
+      var y=i*34, ph=i*18;
+      var d="M0 "+y;
+      for(var x=0;x<=340;x+=8){
+        d+=" L"+x+" "+(y+Math.sin((x+ph)/22)*7).toFixed(1);
+      }
+      lines+='<path d="'+d+'" fill="none" stroke="%2315251C" stroke-width="0.5" opacity="0.5"/>';
+    }
+    return "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='340' height='340'>"+lines+"</svg>\")";
+  }
+  document.getElementById('doc').style.setProperty('--guilloche-bg', bgSVG());
+
+  // ---------- toast ----------
+  var toast=document.getElementById('toast'), tmr;
+  function ping(msg){ toast.textContent=msg; toast.classList.add('show'); clearTimeout(tmr); tmr=setTimeout(function(){toast.classList.remove('show')},1900); }
+
+  // copiar link (in-memory, sem storage)
+  document.getElementById('copyBtn').addEventListener('click',function(){
+    var url="github.com/leandro/lastro-BR-N4-8831";
+    try{ navigator.clipboard && navigator.clipboard.writeText("https://"+url); }catch(e){}
+    ping("link copiado — cole no anúncio do OLX");
+  });
+  document.getElementById('reBtn').addEventListener('click',function(){
+    ping("rodando lastro-agent… novo commit em instantes");
+  });
+
+  // ---------- simular a troca (mostra o wedge do upgrade) ----------
+  var swapped=false;
+  var prog=document.getElementById('prog'), progSub=document.getElementById('progSub');
+  var ssdBar=document.getElementById('ssdBar'), ssdRead=document.getElementById('ssdRead'),
+      ssdTag=document.getElementById('ssdTag'), ssdOrgan=document.getElementById('ssdOrgan');
+  var recoTitle=document.getElementById('recoTitle'), recoBody=document.getElementById('recoBody');
+  var simBtn=document.getElementById('simBtn');
+  var origProg=prog.innerHTML, origSub=progSub.textContent;
+
+  simBtn.addEventListener('click',function(){
+    swapped=!swapped;
+    simBtn.setAttribute('aria-pressed',String(swapped));
+    if(swapped){
+      prog.innerHTML='<span class="approx">≈</span> 5 anos e 2 meses';
+      progSub.textContent='com o SSD novo, o próximo gargalo passa a ser a memória (2028)';
+      ssdBar.style.width='4%';
+      ssdRead.textContent='4% gasto (novo)';
+      ssdTag.textContent='saudável'; ssdTag.className='tag ok';
+      ssdOrgan.className='organ ok';
+      recoTitle.textContent='Troca aplicada — refaça a aferição';
+      recoBody.innerHTML='Após instalar o SSD, rode o <b>lastro-agent</b> de novo: o próximo commit registra a peça nova e o carimbo de quando entrou. O comprador vê a manutenção no histórico.';
+      simBtn.textContent='Desfazer simulação';
+    }else{
+      prog.innerHTML=origProg;
+      progSub.textContent=origSub;
+      ssdBar.style.width='62%';
+      ssdRead.textContent='62% gasto';
+      ssdTag.textContent='crítico'; ssdTag.className='tag warn';
+      ssdOrgan.className='organ warn';
+      recoTitle.textContent='Uma troca devolve 3 anos';
+      recoBody.innerHTML='Trocar o SSD (240 GB → 480 GB, <b>~R$ 190</b>) zera o desgaste e alivia o swap. Prognóstico salta de 2a4m para <b>5+ anos</b>. Comprar máquina nova: ~R$ 3.400.';
+      simBtn.textContent='Simular a troca';
+    }
+  });
+})();
+</script>

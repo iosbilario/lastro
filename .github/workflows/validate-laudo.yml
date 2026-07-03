@@ -1,0 +1,23 @@
+# Valida todo laudo que chega contra o schema. Um laudo malformado nunca entra na Caderneta.
+name: validar-laudo
+
+on:
+  push:
+    paths: [ "data/laudos/*.json", "data/latest.json" ]
+  pull_request:
+    paths: [ "data/laudos/*.json", "data/latest.json" ]
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install jsonschema
+      # TODO(claude-code): validar cada arquivo alterado contra site/laudo.schema.json.
+      #   Falhar o job se o desgaste estiver fora de 0..1, faltar orgao obrigatorio,
+      #   ou o sha256 do agente nao bater com uma versao conhecida.
+      - name: validar contra schema
+        run: |
+          echo "TODO: python scripts/validar.py data/laudos/*.json"

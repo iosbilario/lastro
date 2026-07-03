@@ -1,0 +1,5 @@
+psutil>=5.9
+# smartctl (smartmontools) e uma dependencia de SISTEMA, nao pip:
+#   Ubuntu/Debian: sudo apt install smartmontools
+#   macOS: brew install smartmontools
+#   Windows: choco install smartmontools

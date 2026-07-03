@@ -42,9 +42,10 @@ class LeituraError(RuntimeError):
 
 
 def _sha256_de_mim() -> str:
-    """sha256 do proprio arquivo, para proveniencia no laudo."""
+    """sha256 do proprio arquivo, para proveniencia no laudo. Fins de linha
+    normalizados: a mesma release tem o mesmo hash em qualquer checkout."""
     with open(__file__, "rb") as f:
-        return hashlib.sha256(f.read()).hexdigest()
+        return hashlib.sha256(f.read().replace(b"\r\n", b"\n")).hexdigest()
 
 
 # ---------------------------------------------------------------- identidade

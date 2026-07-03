@@ -47,6 +47,32 @@ def alvos_padrao() -> list[pathlib.Path]:
     return laudos + ([latest] if latest.exists() else [])
 
 
+def _checar_releases(alvos: list[pathlib.Path]) -> int:
+    try:
+        manifesto = json.loads((RAIZ / "data" / "caderneta.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    if manifesto.get("sample", True):
+        return 0  # dados de exemplo nao tem proveniencia para conferir
+    try:
+        conhecidas = json.loads((RAIZ / "agent" / "releases.json").read_text(encoding="utf-8"))["releases"]
+    except (OSError, json.JSONDecodeError, KeyError):
+        print("FALHOU  caderneta real sem agent/releases.json para conferir proveniencia")
+        return 1
+    falhas = 0
+    for caminho in alvos:
+        try:
+            laudo = json.loads(caminho.read_text(encoding="utf-8"))
+            sha = laudo["agente"]["sha256"]
+        except Exception:
+            continue  # ja reprovado pelo schema
+        if sha not in conhecidas:
+            falhas += 1
+            print(f"FALHOU  {caminho.name}: sha256 do agente ({sha[:12]}…) nao e uma "
+                  "release conhecida; laudo pode ter sido editado a mao")
+    return falhas
+
+
 def main(argv: list[str]) -> int:
     validador = carregar_schema()
     alvos = [pathlib.Path(a) for a in argv] if argv else alvos_padrao()
@@ -81,6 +107,10 @@ def main(argv: list[str]) -> int:
         print("FALHOU  caderneta com series distintas na mesma pasta:")
         for arq, s in series.items():
             print(f"        {arq}: {s}")
+
+    # Proveniencia: em caderneta real (sample=false), o sha256 do agente de cada
+    # laudo precisa ser uma release conhecida. E o que barra laudo editado a mao.
+    falhas += _checar_releases(alvos)
 
     if falhas:
         print(f"\n{falhas} problema(s). Laudo malformado nao entra na Caderneta.")

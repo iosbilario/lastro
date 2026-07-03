@@ -1,0 +1,9 @@
+{
+  "descricao": "Releases conhecidas do lastro-agent. Um laudo real so e verificavel se o sha256 do agente que o gerou estiver aqui.",
+  "releases": {
+    "ea9ee34bdf8d94b0242927e797142e4e6d3d40e5dc0a738330895a2504108790": {
+      "versao": "1.4.0",
+      "registrado_em": "2026-07-03"
+    }
+  }
+}

@@ -3,8 +3,9 @@
 O passaporte de saude do seu equipamento. Um laudo publico, datado e inforjavel,
 hospedado inteiramente no GitHub. Sem servidor, sem banco de dados, sem custo.
 
-Passaporte publicado: https://iosbilario.github.io/lastro/ (dados de exemplo ate
-a primeira afericao real; o link com `?verificar` e o certificado do comprador).
+Site publicado: https://iosbilario.github.io/lastro/ (landing -> verificador ->
+certificado). O passaporte vive em `laudo.html`, com dados de exemplo ate a
+primeira afericao real; o link com `laudo.html?certificado` e a visao do comprador.
 
 A palavra vem do mercado: *lastro* e a garantia que sustenta um valor. Aqui, o
 historico de saude da maquina e o lastro que sustenta o quanto ela vale de

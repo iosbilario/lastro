@@ -1,0 +1,212 @@
+<!doctype html>
+<!-- Lastro : o verificador guiado. Tres passos: triagem honesta do navegador,
+     afericao real com o agente (um comando por SO) e o certificado no fim.
+     O navegador NAO le desgaste de hardware; esta pagina nunca finge que le. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lastro — verificar minha máquina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cedula:#E6E9DC; --intaglio:#15251C; --intaglio-soft:#3a4d41;
+    --verde-lastro:#1E7B45; --desgaste:#A9741A; --vencido:#8C2A22;
+    --linha:rgba(21,37,28,.16); --linha-forte:rgba(21,37,28,.34);
+    --desk:#0e1a14;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;color:var(--cedula);
+    background:radial-gradient(120% 90% at 50% -10%, #16261d 0%, var(--desk) 60%, #0a130e 100%);
+    font-family:"Spectral",Georgia,serif;line-height:1.55;
+    display:flex;flex-direction:column;align-items:center;
+    padding:34px 20px 60px;
+  }
+  .wrap{width:100%;max-width:640px}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:34px}
+  .wordmark{font-family:"Fraunces",serif;font-weight:600;letter-spacing:.14em;font-size:15px;
+    text-transform:uppercase;display:flex;align-items:center;gap:8px;color:var(--cedula);text-decoration:none}
+  header a.volta{color:rgba(230,233,220,.7);font-family:"Space Mono",monospace;font-size:10.5px;
+    letter-spacing:.08em;text-transform:uppercase;text-decoration:none;border-bottom:1px solid rgba(230,233,220,.3)}
+
+  h1{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(26px,5vw,36px);margin:0 0 8px;letter-spacing:-.01em}
+  .sub{margin:0 0 30px;font-size:15px;color:rgba(230,233,220,.78);max-width:520px}
+
+  /* cada passo e uma ficha em papel-cedula */
+  .ficha{
+    background:var(--cedula);color:var(--intaglio);
+    border:1px solid rgba(0,0,0,.35);
+    box-shadow:0 24px 50px -24px rgba(0,0,0,.7);
+    padding:20px 22px 22px;margin-bottom:22px;position:relative;
+  }
+  .ficha::after{content:"";position:absolute;inset:7px;pointer-events:none;border:1px solid var(--linha-forte)}
+  .ficha > *{position:relative;z-index:1}
+  .passo-label{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--intaglio-soft);display:flex;align-items:center;gap:10px;margin:0 0 10px}
+  .passo-label::after{content:"";flex:1;height:1px;background:var(--linha)}
+  .passo-label b{color:var(--desgaste);font-size:13px}
+  .ficha h2{margin:0 0 6px;font-family:"Fraunces",serif;font-weight:600;font-size:19px}
+  .ficha p{margin:0 0 10px;font-size:13.5px}
+  .ficha p.mini{font-family:"Space Mono",monospace;font-size:10px;color:var(--intaglio-soft);
+    letter-spacing:.04em;text-transform:uppercase;margin:10px 0 0}
+
+  .triagem{margin:12px 0 0;display:grid;gap:0;border-top:1px solid var(--linha)}
+  .triagem div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--linha);
+    font-size:13px;align-items:baseline}
+  .triagem b{font-family:"Space Mono",monospace;font-size:12px;font-weight:700;text-align:right}
+  .triagem .so-agente b{color:var(--desgaste);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+
+  .abas{display:flex;gap:6px;margin:12px 0 10px;flex-wrap:wrap}
+  .aba{font-family:"Space Mono",monospace;font-size:10.5px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;cursor:pointer;padding:6px 12px;border-radius:1px;
+    background:transparent;color:var(--intaglio);border:1.5px solid var(--linha-forte)}
+  .aba[aria-selected="true"]{background:var(--intaglio);color:var(--cedula);border-color:var(--intaglio)}
+  pre{
+    background:var(--intaglio);color:var(--cedula);margin:0;
+    font-family:"Space Mono",monospace;font-size:11.5px;line-height:1.8;
+    padding:14px 16px;overflow-x:auto;border-radius:1px;
+  }
+  pre .c{color:rgba(230,233,220,.45)}
+  .acoes{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .btn{
+    font-family:"Space Mono",monospace;font-size:11px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;cursor:pointer;text-decoration:none;border-radius:1px;
+    background:var(--intaglio);color:var(--cedula);border:1.5px solid var(--intaglio);
+    padding:9px 14px;transition:transform .12s ease;display:inline-block;
+  }
+  .btn:hover{transform:translateY(-1px)}
+  .btn.ghost{background:transparent;color:var(--intaglio)}
+  .aviso{border:1.5px solid var(--linha-forte);background:rgba(169,116,26,.1);padding:10px 12px;
+    font-size:12.5px;margin-top:12px}
+  .aviso b{color:var(--desgaste)}
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
+    background:var(--cedula);color:var(--intaglio);
+    font-family:"Space Mono",monospace;font-size:11.5px;letter-spacing:.04em;
+    padding:10px 16px;border-radius:2px;opacity:0;pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease;
+    box-shadow:0 10px 30px -10px rgba(0,0,0,.6);
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+
+<div class="wrap">
+  <header>
+    <a class="wordmark" href="index.html">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="1" y="1" width="14" height="14" fill="none" stroke="#E6E9DC" stroke-width="1.3"/>
+        <path d="M4 11 L4 4 M4 11 L12 11" fill="none" stroke="#E6E9DC" stroke-width="1.6"/>
+      </svg>
+      Lastro
+    </a>
+    <a class="volta" href="index.html">← início</a>
+  </header>
+
+  <h1>Verificar minha máquina</h1>
+  <p class="sub">Três passos. O navegador faz a triagem, o agente open-source faz a leitura
+     de verdade na sua máquina, e o certificado sai no fim, carimbado pelo commit.</p>
+
+  <!-- PASSO 1 : triagem -->
+  <section class="ficha">
+    <p class="passo-label"><b>01</b> triagem do navegador</p>
+    <h2>O que dá para ver daqui</h2>
+    <p>Leitura orientativa, direto do navegador. Nada disto entra no laudo.</p>
+    <div class="triagem">
+      <div><span>Sistema operacional</span><b id="tSo">…</b></div>
+      <div><span>Núcleos de CPU</span><b id="tCpu">…</b></div>
+      <div><span>Memória (aproximada)</span><b id="tRam">…</b></div>
+      <div class="so-agente"><span>Desgaste do SSD (SMART)</span><b>só o agente lê</b></div>
+      <div class="so-agente"><span>Recargas e saúde da bateria</span><b>só o agente lê</b></div>
+      <div class="so-agente"><span>Série anônima da placa</span><b>só o agente lê</b></div>
+    </div>
+    <p class="mini">navegador não lê desgaste de hardware; quem promete isso está chutando</p>
+  </section>
+
+  <!-- PASSO 2 : afericao real -->
+  <section class="ficha">
+    <p class="passo-label"><b>02</b> aferição real</p>
+    <h2>Um comando, na sua máquina</h2>
+    <p>O <a href="https://github.com/iosbilario/lastro/blob/main/agent/lastro_agent.py" style="color:var(--verde-lastro)">agente open-source</a>
+       lê o hardware, emite o laudo e comita. Se uma leitura falhar, ele para e avisa: número inventado não existe aqui.</p>
+    <div class="abas" role="tablist">
+      <button class="aba" data-so="linux" role="tab">Linux</button>
+      <button class="aba" data-so="mac" role="tab">macOS</button>
+      <button class="aba" data-so="win" role="tab">Windows</button>
+    </div>
+    <pre id="cmd"></pre>
+    <div class="acoes">
+      <button class="btn" id="copiarCmd">Copiar comandos</button>
+    </div>
+    <div class="aviso"><b>O passaporte é um repositório seu.</b> Se este repo não é o seu,
+      faça um fork antes (botão Fork no GitHub) e clone o fork: o carimbo precisa sair da sua conta.</div>
+  </section>
+
+  <!-- PASSO 3 : certificado -->
+  <section class="ficha">
+    <p class="passo-label"><b>03</b> certificado</p>
+    <h2>O commit carimbou? Está emitido.</h2>
+    <p>Depois do <code style="font-family:'Space Mono',monospace;font-size:12px">git push</code>, o passaporte
+       deixa de mostrar dados de exemplo e o selo passa a apontar o commit real. O link com
+       <code style="font-family:'Space Mono',monospace;font-size:12px">?certificado</code> é a versão de leitura
+       que você cola no anúncio.</p>
+    <div class="acoes">
+      <a class="btn" href="laudo.html">Abrir meu passaporte</a>
+      <a class="btn ghost" href="laudo.html?certificado">Ver como o comprador vê</a>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast">comandos copiados</div>
+
+<script>
+(function(){
+  "use strict";
+  var $=function(id){return document.getElementById(id);};
+
+  /* ---------- passo 1: triagem honesta ---------- */
+  var ua=navigator.userAgent, plataforma="desconhecido", soDetectado="linux";
+  if(/Windows/i.test(ua)){plataforma="Windows";soDetectado="win";}
+  else if(/Mac OS X|Macintosh/i.test(ua)){plataforma="macOS";soDetectado="mac";}
+  else if(/Linux/i.test(ua)){plataforma="Linux";soDetectado="linux";}
+  else if(/Android|iPhone|iPad/i.test(ua)){plataforma=ua.match(/Android|iPhone|iPad/i)[0];}
+  $('tSo').textContent=plataforma;
+  $('tCpu').textContent=navigator.hardwareConcurrency?navigator.hardwareConcurrency+" núcleos":"não exposto";
+  $('tRam').textContent=navigator.deviceMemory?(navigator.deviceMemory>=8?"8 GB ou mais":"~"+navigator.deviceMemory+" GB"):"não exposto";
+
+  /* ---------- passo 2: comando por SO ---------- */
+  var REPO="https://github.com/iosbilario/lastro";
+  var CMDS={
+    linux:"<span class='c'># terminal</span>\n"+
+      "git clone "+REPO+" && cd lastro\n"+
+      "sudo apt install smartmontools && pip install -r agent/requirements.txt\n"+
+      "sudo python3 agent/lastro_agent.py --emitir --commit && git push",
+    mac:"<span class='c'># terminal</span>\n"+
+      "git clone "+REPO+" && cd lastro\n"+
+      "brew install smartmontools && pip3 install -r agent/requirements.txt\n"+
+      "sudo python3 agent/lastro_agent.py --emitir --commit && git push",
+    win:"<span class='c'># PowerShell como administrador</span>\n"+
+      "git clone "+REPO+"; cd lastro\n"+
+      "choco install smartmontools -y; pip install -r agent/requirements.txt\n"+
+      "python agent\\lastro_agent.py --emitir --commit; git push"
+  };
+  var abas=document.querySelectorAll('.aba');
+  function mostrar(so){
+    abas.forEach(function(a){a.setAttribute('aria-selected',String(a.dataset.so===so));});
+    $('cmd').innerHTML=CMDS[so];
+    $('cmd').dataset.so=so;
+  }
+  abas.forEach(function(a){a.addEventListener('click',function(){mostrar(a.dataset.so);});});
+  mostrar(CMDS[soDetectado]?soDetectado:"linux");
+
+  /* ---------- copiar ---------- */
+  var toast=$('toast'),tmr;
+  $('copiarCmd').addEventListener('click',function(){
+    var texto=$('cmd').innerText.split("\n").slice(1).join("\n"); // sem o comentario
+    try{ navigator.clipboard&&navigator.clipboard.writeText(texto); }catch(e){}
+    toast.classList.add('show');clearTimeout(tmr);
+    tmr=setTimeout(function(){toast.classList.remove('show');},2000);
+  });
+})();
+</script>

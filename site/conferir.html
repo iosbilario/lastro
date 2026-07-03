@@ -1,0 +1,195 @@
+<!doctype html>
+<!-- Lastro : conferencia de certificado-arquivo. O comprador arrasta o HTML
+     que recebeu; esta pagina recalcula o sha256 do laudo embutido e o compara
+     com o registro no Rekor (diario publico append-only). Zero servidor nosso:
+     a fe vem do log publico, nao de nos. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lastro — conferir um certificado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cedula:#E6E9DC; --intaglio:#15251C; --intaglio-soft:#3a4d41;
+    --verde-lastro:#1E7B45; --desgaste:#A9741A; --vencido:#8C2A22;
+    --linha:rgba(21,37,28,.16); --linha-forte:rgba(21,37,28,.34);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;color:var(--cedula);
+    background:radial-gradient(120% 90% at 50% -10%, #16261d 0%, #0e1a14 60%, #0a130e 100%);
+    font-family:"Spectral",Georgia,serif;line-height:1.55;
+    display:flex;flex-direction:column;align-items:center;padding:34px 20px 60px;
+  }
+  .wrap{width:100%;max-width:640px}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:34px}
+  .wordmark{font-family:"Fraunces",serif;font-weight:600;letter-spacing:.14em;font-size:15px;
+    text-transform:uppercase;display:flex;align-items:center;gap:8px;color:var(--cedula);text-decoration:none}
+  header a.volta{color:rgba(230,233,220,.7);font-family:"Space Mono",monospace;font-size:10.5px;
+    letter-spacing:.08em;text-transform:uppercase;text-decoration:none;border-bottom:1px solid rgba(230,233,220,.3)}
+  h1{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(26px,5vw,36px);margin:0 0 8px;letter-spacing:-.01em}
+  .sub{margin:0 0 26px;font-size:15px;color:rgba(230,233,220,.78);max-width:540px}
+
+  .zona{
+    border:2px dashed rgba(230,233,220,.35);padding:38px 20px;text-align:center;cursor:pointer;
+    font-family:"Space Mono",monospace;font-size:12px;color:rgba(230,233,220,.75);
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .zona:hover,.zona.arrastando{border-color:var(--cedula);background:rgba(230,233,220,.05)}
+  .zona b{color:var(--cedula)}
+  input[type=file]{display:none}
+
+  .ficha{
+    display:none;background:var(--cedula);color:var(--intaglio);
+    border:1px solid rgba(0,0,0,.35);box-shadow:0 24px 50px -24px rgba(0,0,0,.7);
+    padding:20px 22px 22px;margin-top:22px;position:relative;
+  }
+  .ficha::after{content:"";position:absolute;inset:7px;pointer-events:none;border:1px solid var(--linha-forte)}
+  .ficha > *{position:relative;z-index:1}
+  .veredito{font-family:"Fraunces",serif;font-weight:600;font-size:21px;margin:0 0 4px;display:flex;align-items:center;gap:10px}
+  .veredito.ok{color:var(--verde-lastro)} .veredito.bad{color:var(--vencido)} .veredito.wait{color:var(--intaglio-soft)}
+  .resumo{font-size:13.5px;margin:0 0 12px;color:var(--intaglio)}
+  .checks{margin:0;display:grid;gap:6px;border-top:1px solid var(--linha);padding-top:12px}
+  .checks div{display:flex;gap:10px;align-items:baseline;font-size:13px}
+  .checks .s{font-family:"Space Mono",monospace;font-weight:700;font-size:12px;min-width:16px}
+  .checks .s.ok{color:var(--verde-lastro)} .checks .s.bad{color:var(--vencido)} .checks .s.wait{color:var(--intaglio-soft)}
+  .checks small{display:block;font-family:"Space Mono",monospace;font-size:10px;color:var(--intaglio-soft);overflow-wrap:anywhere}
+  .fonte{margin-top:12px;font-family:"Space Mono",monospace;font-size:10px;color:var(--intaglio-soft)}
+  .fonte a{color:var(--verde-lastro)}
+  .micro{margin-top:26px;font-family:"Space Mono",monospace;font-size:8.5px;letter-spacing:.06em;
+    color:rgba(230,233,220,.4);text-transform:uppercase;text-align:center;line-height:1.9;
+    border-top:1px solid rgba(230,233,220,.14);padding-top:14px}
+</style>
+
+<div class="wrap">
+  <header>
+    <a class="wordmark" href="index.html">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="1" y="1" width="14" height="14" fill="none" stroke="#E6E9DC" stroke-width="1.3"/>
+        <path d="M4 11 L4 4 M4 11 L12 11" fill="none" stroke="#E6E9DC" stroke-width="1.6"/>
+      </svg>
+      Lastro
+    </a>
+    <a class="volta" href="index.html">← início</a>
+  </header>
+
+  <h1>Conferir um certificado</h1>
+  <p class="sub">Recebeu um arquivo <span style="font-family:'Space Mono',monospace;font-size:13px">lastro-certificado-….html</span>?
+     Solte-o aqui. Esta página recalcula a impressão digital do laudo e a compara com o registro
+     no diário público Rekor. A prova não depende de nós, nem de quem te mandou o arquivo.</p>
+
+  <label class="zona" id="zona" for="arquivo">
+    <b>arraste o arquivo do certificado aqui</b><br>ou clique para escolher
+  </label>
+  <input type="file" id="arquivo" accept=".html,.htm">
+
+  <section class="ficha" id="ficha">
+    <p class="veredito wait" id="veredito">conferindo…</p>
+    <p class="resumo" id="resumo"></p>
+    <div class="checks" id="checks"></div>
+    <p class="fonte" id="fonte"></p>
+  </section>
+
+  <p class="micro">a conferência roda inteira no seu navegador · o carimbo vem do diário público
+     rekor.sigstore.dev (linux foundation), append-only e auditável · lastro</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $=function(id){return document.getElementById(id);};
+  var REKOR="https://rekor.sigstore.dev";
+
+  function hex(buf){
+    return Array.prototype.map.call(new Uint8Array(buf),function(b){return b.toString(16).padStart(2,"0");}).join("");
+  }
+  function check(nome,estado,detalhe){
+    var d=document.createElement('div');
+    d.innerHTML='<span class="s '+estado+'">'+(estado==="ok"?"✓":estado==="bad"?"✗":"…")+'</span>'+
+      '<span>'+nome+(detalhe?'<small></small>':'')+'</span>';
+    if(detalhe) d.querySelector('small').textContent=detalhe;
+    $('checks').appendChild(d);
+    return d;
+  }
+  function veredito(cls,txt){ var v=$('veredito'); v.className="veredito "+cls; v.textContent=txt; }
+
+  function conferir(texto){
+    $('ficha').style.display="block";
+    $('checks').innerHTML=""; $('resumo').textContent=""; $('fonte').textContent="";
+    veredito("wait","conferindo…");
+
+    var m=texto.match(/<script type="application\/json" id="lastro-prova">([\s\S]*?)<\/script>/);
+    if(!m){ veredito("bad","isto não é um certificado Lastro");
+      check("bloco de prova embutido no arquivo","bad","não encontrei a seção lastro-prova"); return; }
+    var prova, laudo, bytes;
+    try{
+      prova=JSON.parse(m[1]);
+      var bin=atob(prova.laudo_b64);
+      bytes=new Uint8Array(bin.length);
+      for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+      laudo=JSON.parse(new TextDecoder().decode(bytes));
+    }catch(e){ veredito("bad","certificado corrompido"); check("leitura da prova embutida","bad",String(e)); return; }
+    check("laudo embutido legível","ok",
+      laudo.maquina.modelo+" · série "+laudo.serie+" · aferido em "+laudo.aferido_em);
+    $('resumo').textContent="SSD: "+Math.round(laudo.orgaos.ssd.desgaste*100)+"% de desgaste ("+
+      laudo.orgaos.ssd.estado+")"+(laudo.prognostico?" · prognóstico ≈ "+laudo.prognostico.meses_restantes+" meses":"");
+
+    crypto.subtle.digest("SHA-256",bytes).then(function(dig){
+      var sha=hex(dig);
+      var c1=sha===prova.carimbo.sha256;
+      check("impressão digital do laudo bate com a declarada",c1?"ok":"bad","sha256 "+sha.slice(0,24)+"…");
+      if(!c1){ veredito("bad","NÃO CONFERE · o laudo foi alterado"); return; }
+
+      var esperando=check("registro no diário público Rekor","wait","consultando "+prova.carimbo.uuid.slice(0,20)+"…");
+      fetch(REKOR+"/api/v1/log/entries/"+prova.carimbo.uuid)
+        .then(function(r){ if(!r.ok) throw new Error("registro não encontrado ("+r.status+")"); return r.json(); })
+        .then(function(resp){
+          esperando.remove();
+          var entrada=resp[prova.carimbo.uuid]||resp[Object.keys(resp)[0]];
+          var corpo=JSON.parse(atob(entrada.body));
+          var shaRekor=corpo.spec.data.hash.value;
+          var quando=new Date(entrada.integratedTime*1000).toISOString().replace(".000","");
+          var c2=shaRekor===sha;
+          check("hash no diário público é o mesmo do laudo",c2?"ok":"bad","registro público: sha256 "+shaRekor.slice(0,24)+"…");
+          check("data do carimbo (dada pelo diário, não pelo vendedor)","ok",quando+" · índice "+entrada.logIndex);
+          if(!c2){ veredito("bad","NÃO CONFERE · o registro público não corresponde"); return; }
+
+          fetch("agent/releases.json").then(function(r){return r.ok?r.json():null;}).then(function(rel){
+            var oficial=rel&&rel.releases&&rel.releases[laudo.agente.sha256];
+            check("laudo gerado pelo script oficial do Lastro",oficial?"ok":"bad",
+              oficial?("lastro-agent v"+laudo.agente.versao):"sha256 do agente fora das releases conhecidas");
+            veredito(oficial?"ok":"bad",
+              oficial?"VÁLIDO · laudo íntegro, datado e de script oficial"
+                     :"ATENÇÃO · laudo íntegro e datado, mas o script não é uma release oficial");
+            $('fonte').innerHTML='conferência independente: <a href="https://search.sigstore.dev/?uuid='+
+              prova.carimbo.uuid+'" rel="noopener">ver este registro no sigstore ↗</a>';
+          });
+        })
+        .catch(function(e){
+          esperando.remove();
+          check("registro no diário público Rekor","bad",String(e.message||e));
+          veredito("bad","NÃO CONFERE · não encontrei o carimbo no diário público");
+          $('fonte').innerHTML='tente a conferência manual: <a href="https://search.sigstore.dev/?uuid='+
+            prova.carimbo.uuid+'" rel="noopener">buscar o registro no sigstore ↗</a>';
+        });
+    });
+  }
+
+  function lerArquivo(f){
+    if(!f) return;
+    var r=new FileReader();
+    r.onload=function(){ conferir(String(r.result)); };
+    r.readAsText(f);
+  }
+  $('arquivo').addEventListener('change',function(){ lerArquivo(this.files[0]); });
+  var zona=$('zona');
+  ["dragenter","dragover"].forEach(function(ev){
+    zona.addEventListener(ev,function(e){ e.preventDefault(); zona.classList.add('arrastando'); });
+  });
+  ["dragleave","drop"].forEach(function(ev){
+    zona.addEventListener(ev,function(e){ e.preventDefault(); zona.classList.remove('arrastando'); });
+  });
+  zona.addEventListener('drop',function(e){ lerArquivo(e.dataTransfer.files[0]); });
+})();
+</script>

@@ -8,7 +8,7 @@
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSAO = "1.7.0"
+$VERSAO = "1.7.1"
 $SELF_URL = "https://raw.githubusercontent.com/iosbilario/lastro/main/site/go.ps1"
 $SITE = "https://iosbilario.github.io/lastro"
 $CLIENT_ID = "Ov23liWw9JYNfAI8V5in"
@@ -44,31 +44,87 @@ function Le-Serie {
     "BR-$($h.Substring(0,2))-$($h.Substring(2,4))"
 }
 
-function Le-Ssd {
-    # Wear do StorageReliabilityCounter = percentage_used do NVMe, direto do Windows.
-    $discos = Get-PhysicalDisk | Sort-Object DeviceId
-    $semPermissao = $false
-    foreach ($d in $discos) {
-        try { $rc = $d | Get-StorageReliabilityCounter } catch { $semPermissao = $true; continue }
-        if ($null -ne $rc.Wear) {
-            $desgaste = [math]::Round([double]$rc.Wear / 100, 3)
-            if ($desgaste -gt 1) { $desgaste = 1.0 }
-            $estado = if ($desgaste -ge 0.6) { "critico" } elseif ($desgaste -ge 0.4) { "atencao" } else { "saudavel" }
-            return @{
-                orgao = [ordered]@{
-                    desgaste = $desgaste
-                    valor_cru = "Percentage Used: $($rc.Wear)% (StorageReliabilityCounter)"
-                    estado = $estado
-                }
-                capacidade_gb = [math]::Round([double]$d.Size / 1e9)
+function Estado-Ssd($desgaste) {
+    if ($desgaste -ge 0.6) { "critico" } elseif ($desgaste -ge 0.4) { "atencao" } else { "saudavel" }
+}
+
+function Acha-Smartctl {
+    $c = Get-Command smartctl -ErrorAction SilentlyContinue
+    if ($c) { return $c.Source }
+    foreach ($p in @("C:\Program Files\smartmontools\bin\smartctl.exe",
+                     "C:\Program Files (x86)\smartmontools\bin\smartctl.exe")) {
+        if (Test-Path $p) { return $p }
+    }
+    $null
+}
+
+function Le-Ssd-Smartctl($exe) {
+    # smartctl le o SMART direto do disco: e a fonte mais confiavel quando existe.
+    try { $scan = (& $exe --scan -j | Out-String | ConvertFrom-Json) } catch { return $null }
+    foreach ($disp in @($scan.devices)) {
+        try { $dados = (& $exe -A -i -j $disp.name | Out-String | ConvertFrom-Json) } catch { continue }
+        $desgaste = $null; $cru = $null
+        $nvme = $dados.nvme_smart_health_information_log
+        if ($nvme -and $null -ne $nvme.percentage_used) {
+            $pct = [double]$nvme.percentage_used
+            $desgaste = [math]::Round([math]::Min(1.0, $pct / 100), 3)
+            $cru = "Percentage Used: $pct% (smartctl)"
+        } elseif ($dados.ata_smart_attributes.table) {
+            $attr = $dados.ata_smart_attributes.table | Where-Object { $_.id -in 177, 233 } | Select-Object -First 1
+            if ($attr) {
+                $desgaste = [math]::Round([math]::Max(0.0, [math]::Min(1.0, 1 - [double]$attr.value / 100)), 3)
+                $cru = "$($attr.name): $($attr.value)/100 (smartctl)"
             }
         }
+        if ($null -eq $desgaste) { continue }
+        $cap = $null
+        if ($dados.user_capacity.bytes) { $cap = [math]::Round([double]$dados.user_capacity.bytes / 1e9) }
+        return @{
+            orgao = [ordered]@{ desgaste = $desgaste; valor_cru = $cru; estado = (Estado-Ssd $desgaste) }
+            capacidade_gb = $cap
+        }
+    }
+    $null
+}
+
+function Le-Ssd {
+    # 1) smartctl, se existir: leitura SMART direta, a fonte de verdade.
+    $exe = Acha-Smartctl
+    if ($exe) {
+        $r = Le-Ssd-Smartctl $exe
+        if ($r) { return $r }
+    }
+    # 2) contador nativo do Windows. Wear=0 e AMBIGUO: pode ser disco novo ou
+    #    driver que nao reporta (visto em campo: driver devolvendo 0 com SMART
+    #    real de 13%). Numero possivelmente falso nao entra no laudo.
+    $discos = Get-PhysicalDisk | Sort-Object DeviceId
+    $semPermissao = $false
+    $vimosZero = $false
+    foreach ($d in $discos) {
+        try { $rc = $d | Get-StorageReliabilityCounter } catch { $semPermissao = $true; continue }
+        if ($null -eq $rc.Wear) { continue }
+        if ([double]$rc.Wear -le 0) { $vimosZero = $true; continue }
+        $desgaste = [math]::Round([math]::Min(1.0, [double]$rc.Wear / 100), 3)
+        return @{
+            orgao = [ordered]@{
+                desgaste = $desgaste
+                valor_cru = "Percentage Used: $($rc.Wear)% (contador nativo do Windows)"
+                estado = (Estado-Ssd $desgaste)
+            }
+            capacidade_gb = [math]::Round([double]$d.Size / 1e9)
+        }
+    }
+    if ($vimosZero) {
+        Falha ("o contador nativo do Windows reportou desgaste 0, e neste driver isso pode ser`n" +
+               "falso (disco novo e driver mudo dao a mesma resposta). Numero duvidoso nao entra`n" +
+               "no laudo. Para a leitura SMART direta, instale o smartmontools e rode de novo:`n" +
+               "  winget install smartmontools.smartmontools")
     }
     if ($semPermissao) {
         Falha "o Windows negou a leitura do contador de desgaste: rode como administrador."
     }
-    Falha ("nenhum disco desta maquina expoe o contador de desgaste pelo Windows.`n" +
-           "Alternativa: o verificador em exe (le via smartctl): $SITE/verificar.html")
+    Falha ("nenhum disco desta maquina expoe indicador de desgaste.`n" +
+           "Alternativa: instale o smartmontools (winget install smartmontools.smartmontools) e rode de novo.")
 }
 
 function Le-Bateria {
@@ -336,7 +392,8 @@ function Publica-GitHub($laudo, $token) {
     $pai = $ref.object.sha
     $arvorePai = (Api "$base/git/commits/$pai" $token).tree.sha
     $nome = $laudo.aferido_em.Substring(0,10) + ".json"
-    $laudosLista = @($manifesto.laudos) + @($nome) | Select-Object -Unique | Sort-Object
+    # @(...) externo: com um item so, o pipeline devolveria string e o JSON sairia sem array
+    $laudosLista = @(@($manifesto.laudos) + @($nome) | Select-Object -Unique | Sort-Object)
     $manifesto = @{ descricao = $manifesto.descricao; sample = $false; laudos = $laudosLista }
     $arvore = Api "$base/git/trees" $token @{
         base_tree = $arvorePai

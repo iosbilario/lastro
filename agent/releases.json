@@ -49,6 +49,11 @@
       "versao": "1.7.0",
       "registrado_em": "2026-07-03",
       "artefato": "go.ps1"
+    },
+    "9a0499911589a15b9d6a31c75b61c93ef2906f22ca5f0f9cf516bd719825fd92": {
+      "versao": "1.7.1",
+      "registrado_em": "2026-07-03",
+      "artefato": "go.ps1"
     }
   }
 }

@@ -710,6 +710,8 @@
       j(base+"/agent/releases.json").catch(function(){ return null; })
     ]).then(function(res){
       var manifesto=res[0], latest=res[1], obs=res[2], releases=res[3];
+      /* defensivo: manifesto gerado com um laudo so pode vir como string */
+      if(!Array.isArray(manifesto.laudos)) manifesto.laudos=[manifesto.laudos].filter(Boolean);
       return Promise.all(manifesto.laudos.map(function(n){ return j(bust(dataBase+"/data/laudos/"+n,t)); }))
         .then(function(laudos){
           $('erro').style.display="none";

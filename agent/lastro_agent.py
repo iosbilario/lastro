@@ -30,7 +30,7 @@ import subprocess
 import sys
 
 SCHEMA_VERSAO = "1"
-AGENTE_VERSAO = "1.5.0"
+AGENTE_VERSAO = "1.5.1"
 RAIZ = pathlib.Path(__file__).resolve().parent.parent   # raiz do repo do passaporte
 LAUDOS_DIR = RAIZ / "data" / "laudos"
 CADERNETA = RAIZ / "data" / "caderneta.json"
@@ -601,7 +601,29 @@ def publicar_um_clique(laudo: dict, token: str) -> str:
         "tree": arvore["sha"], "parents": [pai]})
     _api(f"{base}/git/refs/heads/main", token, {"sha": commit["sha"]}, metodo="PATCH")
     print(f"laudo publicado: commit {commit['sha'][:7]} em {login}/{REPO_PASSAPORTE}")
+    _espera_ficar_publico(login)
     return f"{SITE}/laudo.html?p={login}/{REPO_PASSAPORTE}"
+
+
+def _espera_ficar_publico(login: str):
+    """Repo recem-criado demora alguns segundos para aparecer no raw (CDN).
+    Espera o laudo responder antes de abrir o certificado, para o usuario
+    nunca ver a pagina vazia."""
+    import time
+    import urllib.request
+    url = f"https://raw.githubusercontent.com/{login}/{REPO_PASSAPORTE}/main/data/latest.json"
+    print("    esperando o carimbo ficar publico...", end="", flush=True)
+    for i in range(15):
+        try:
+            with urllib.request.urlopen(f"{url}?r={i}", timeout=10) as r:
+                if r.status == 200:
+                    print(" ok")
+                    return
+        except Exception:
+            pass
+        print(".", end="", flush=True)
+        time.sleep(3)
+    print("\n    o GitHub esta demorando; se o certificado abrir vazio, recarregue a pagina.")
 
 
 def fluxo_um_clique() -> int:

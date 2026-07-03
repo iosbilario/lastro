@@ -699,31 +699,45 @@
 
   if(params.has('certificado')) document.body.classList.add('leitor');
 
-  Promise.all([
-    j(dataBase+"/data/caderneta.json"),
-    j(dataBase+"/data/latest.json"),
-    j(base+"/data/observatorio.json").catch(function(){ return null; }),
-    j(base+"/agent/releases.json").catch(function(){ return null; })
-  ]).then(function(res){
-    var manifesto=res[0], latest=res[1], obs=res[2], releases=res[3];
-    return Promise.all(manifesto.laudos.map(function(n){ return j(dataBase+"/data/laudos/"+n); }))
-      .then(function(laudos){
-        laudos.sort(function(a,b){ return a.aferido_em<b.aferido_em?-1:1; });
-        var gargalo=(latest.prognostico&&latest.prognostico.gargalo)||"ssd";
-        renderCabecalho(latest,laudos,manifesto);
-        renderPrognostico(latest);
-        renderOrgaos(latest);
-        renderCaderneta(laudos,gargalo);
-        renderObservatorio(latest,laudos,obs,gargalo);
-        renderReco(latest,laudos);
-        renderSelo(latest,laudos,manifesto,releases);
-      });
-  }).catch(function(e){
-    var el=$('erro');
-    el.style.display="block";
-    el.textContent="não consegui carregar o laudo: "+e.message+
-      " · o site renderiza apenas o que está comitado em data/.";
-  });
+  /* repo recem-criado demora alguns segundos para aparecer no raw (CDN);
+     em vez de erro, o site espera o cartorio abrir a porta. */
+  function bust(u,t){ return t?u+(u.indexOf('?')>=0?'&':'?')+'r='+t:u; }
+  function carregarTudo(t){
+    Promise.all([
+      j(bust(dataBase+"/data/caderneta.json",t)),
+      j(bust(dataBase+"/data/latest.json",t)),
+      j(base+"/data/observatorio.json").catch(function(){ return null; }),
+      j(base+"/agent/releases.json").catch(function(){ return null; })
+    ]).then(function(res){
+      var manifesto=res[0], latest=res[1], obs=res[2], releases=res[3];
+      return Promise.all(manifesto.laudos.map(function(n){ return j(bust(dataBase+"/data/laudos/"+n,t)); }))
+        .then(function(laudos){
+          $('erro').style.display="none";
+          laudos.sort(function(a,b){ return a.aferido_em<b.aferido_em?-1:1; });
+          var gargalo=(latest.prognostico&&latest.prognostico.gargalo)||"ssd";
+          renderCabecalho(latest,laudos,manifesto);
+          renderPrognostico(latest);
+          renderOrgaos(latest);
+          renderCaderneta(laudos,gargalo);
+          renderObservatorio(latest,laudos,obs,gargalo);
+          renderReco(latest,laudos);
+          renderSelo(latest,laudos,manifesto,releases);
+        });
+    }).catch(function(e){
+      var el=$('erro');
+      el.style.display="block";
+      if(passaporte&&t<8){
+        el.style.color="var(--desgaste)";
+        el.textContent="o carimbo acabou de sair; esperando o GitHub torná-lo público… ("+(t+1)+" de 8)";
+        setTimeout(function(){ carregarTudo(t+1); },4000);
+        return;
+      }
+      el.style.color="var(--vencido)";
+      el.textContent="não consegui carregar o laudo: "+e.message+
+        " · o site renderiza apenas o que está comitado em data/.";
+    });
+  }
+  carregarTudo(0);
 
   /* ---------- ações ---------- */
   $('copyBtn').addEventListener('click',function(){

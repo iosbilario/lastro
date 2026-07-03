@@ -3,9 +3,19 @@ name: validar-laudo
 
 on:
   push:
-    paths: [ "data/laudos/*.json", "data/latest.json" ]
+    paths:
+      - "data/laudos/*.json"
+      - "data/latest.json"
+      - "site/laudo.schema.json"
+      - "scripts/validar.py"
+      - ".github/workflows/validate-laudo.yml"
   pull_request:
-    paths: [ "data/laudos/*.json", "data/latest.json" ]
+    paths:
+      - "data/laudos/*.json"
+      - "data/latest.json"
+      - "site/laudo.schema.json"
+      - "scripts/validar.py"
+      - ".github/workflows/validate-laudo.yml"
 
 jobs:
   validar:
@@ -15,9 +25,5 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install jsonschema
-      # TODO(claude-code): validar cada arquivo alterado contra site/laudo.schema.json.
-      #   Falhar o job se o desgaste estiver fora de 0..1, faltar orgao obrigatorio,
-      #   ou o sha256 do agente nao bater com uma versao conhecida.
       - name: validar contra schema
-        run: |
-          echo "TODO: python scripts/validar.py data/laudos/*.json"
+        run: python scripts/validar.py

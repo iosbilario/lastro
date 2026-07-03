@@ -262,6 +262,72 @@ def _estado(d: float, atencao: float, critico: float) -> str:
     return "critico" if d >= critico else "atencao" if d >= atencao else "saudavel"
 
 
+# --------------------------------------------------------------- prognostico
+
+def _historico_real() -> list[dict]:
+    """Laudos ja gravados na Caderneta, ignorando dados de exemplo. Enquanto o
+    manifesto disser sample=true, a caderneta ainda e demonstracao."""
+    try:
+        manifesto = json.loads(CADERNETA.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if manifesto.get("sample"):
+        return []
+    laudos = []
+    for nome in manifesto.get("laudos", []):
+        try:
+            laudos.append(json.loads((LAUDOS_DIR / nome).read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError):
+            pass
+    laudos.sort(key=lambda l: l["aferido_em"])
+    return laudos
+
+
+def calcular_prognostico(laudo: dict, historico: list[dict]) -> dict | None:
+    """Formula legivel, sem caixa-preta (SPEC secao 6):
+      taxa do orgao   = (desgaste de agora - desgaste da 1a afericao) / meses entre elas
+      meses restantes = (1 - desgaste de agora) / taxa
+      gargalo         = o orgao que zera primeiro
+      margem          = 20% da estimativa (historico curto = incerteza alta)
+    So estima com 2+ afericoes reais da MESMA serie. Sem historico, sem numero."""
+    pontos = [l for l in historico if l.get("serie") == laudo["serie"]]
+    if not pontos:
+        return None
+    primeira = dt.datetime.fromisoformat(pontos[0]["aferido_em"].replace("Z", "+00:00"))
+    agora = dt.datetime.fromisoformat(laudo["aferido_em"].replace("Z", "+00:00"))
+    meses = (agora - primeira).days / 30.44
+    if meses <= 0:
+        return None
+
+    gargalo = None
+    for nome, orgao in laudo["orgaos"].items():
+        antigo = pontos[0]["orgaos"].get(nome)
+        if antigo is None:
+            continue
+        taxa = (orgao["desgaste"] - antigo["desgaste"]) / meses
+        if taxa <= 0:
+            continue
+        restantes = (1 - orgao["desgaste"]) / taxa
+        if gargalo is None or restantes < gargalo[1]:
+            gargalo = (nome, restantes)
+    if gargalo is None:
+        return None
+
+    prognostico = {
+        "meses_restantes": round(gargalo[1]),
+        "margem_meses": max(1, round(gargalo[1] * 0.2)),
+        "gargalo": gargalo[0],
+    }
+    try:  # base amostral: quantas maquinas do mesmo modelo o Observatorio conhece
+        obs = json.loads((RAIZ / "data" / "observatorio.json").read_text(encoding="utf-8"))
+        modelo = obs.get("modelos", {}).get(laudo["maquina"]["modelo"])
+        if modelo and modelo.get("amostra"):
+            prognostico["base_amostral"] = modelo["amostra"]
+    except (OSError, json.JSONDecodeError):
+        pass
+    return prognostico
+
+
 # --------------------------------------------------------------------- laudo
 
 def montar_laudo() -> dict:
@@ -271,7 +337,7 @@ def montar_laudo() -> dict:
         orgao = leitor()
         if orgao is not None:
             orgaos[nome] = orgao
-    return {
+    laudo = {
         "versao": SCHEMA_VERSAO,
         "serie": _serie_anonima(),
         "maquina": ler_maquina(capacidade_gb),
@@ -279,11 +345,67 @@ def montar_laudo() -> dict:
         "agente": {"nome": "lastro-agent", "versao": AGENTE_VERSAO, "sha256": _sha256_de_mim()},
         "orgaos": orgaos,
     }
+    prognostico = calcular_prognostico(laudo, _historico_real())
+    if prognostico:
+        laudo["prognostico"] = prognostico
+    return laudo
+
+
+def _json_bonito(obj: dict) -> str:
+    return json.dumps(obj, ensure_ascii=False, indent=2) + "\n"
 
 
 def comitar(laudo: dict):
-    """TODO: gravar na Caderneta e comitar. Implementado no proximo passo."""
-    raise NotImplementedError("commit ainda nao implementado.")
+    """Grava o laudo na Caderneta e comita. O commit e o carimbo de cartorio:
+    e ele, e nao o campo aferido_em, que da a garantia inforjavel. Na primeira
+    afericao real, os dados de exemplo saem da caderneta (serie de outra maquina
+    nao pode conviver com a sua)."""
+    if not (RAIZ / ".git").exists():
+        raise LeituraError(
+            "esta pasta nao e um repositorio git: sem commit nao ha carimbo.\n"
+            f"Rode `git init` em {RAIZ} (ou clone seu repo de passaporte).")
+
+    try:
+        manifesto = json.loads(CADERNETA.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        manifesto = {"sample": True, "laudos": []}
+
+    if manifesto.get("sample"):
+        print("primeira afericao real: removendo os laudos de exemplo da caderneta.")
+        for nome in manifesto.get("laudos", []):
+            (LAUDOS_DIR / nome).unlink(missing_ok=True)
+        manifesto["laudos"] = []
+        manifesto["sample"] = False
+        manifesto["descricao"] = ("Indice da Caderneta, mantido pelo lastro-agent "
+                                  "a cada --commit. O site descobre os laudos por aqui.")
+
+    nome = f"{laudo['aferido_em'][:10]}.json"     # re-afericao no mesmo dia sobrescreve
+    LAUDOS_DIR.mkdir(parents=True, exist_ok=True)
+    (LAUDOS_DIR / nome).write_text(_json_bonito(laudo), encoding="utf-8")
+    if nome not in manifesto["laudos"]:
+        manifesto["laudos"].append(nome)
+    manifesto["laudos"].sort()
+    LATEST.write_text(_json_bonito(laudo), encoding="utf-8")
+    CADERNETA.write_text(_json_bonito(manifesto), encoding="utf-8")
+
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", *args], cwd=RAIZ, capture_output=True, text=True)
+
+    git("add", str(LAUDOS_DIR / nome), str(LATEST), str(CADERNETA))
+    msg = f"laudo: afericao {laudo['aferido_em'][:10]} (serie {laudo['serie']})"
+    r = git("commit", "-m", msg)
+    if r.returncode != 0:
+        raise LeituraError(f"git commit falhou:\n{r.stdout}{r.stderr}")
+    sha = git("rev-parse", "--short", "HEAD").stdout.strip()
+    print(f"laudo comitado: {sha} \"{msg}\"")
+
+    r = git("push")
+    if r.returncode == 0:
+        print("push feito: o carimbo publico do GitHub ja vale.")
+    else:
+        print("push nao foi possivel agora (sem remoto ou sem rede).\n"
+              "O laudo esta comitado localmente; o carimbo so vale como prova "
+              "publica depois do push.")
 
 
 def main(argv=None) -> int:
@@ -304,7 +426,12 @@ def main(argv=None) -> int:
 
     print(json.dumps(laudo, ensure_ascii=False, indent=2))
     if args.commit:
-        comitar(laudo)
+        try:
+            comitar(laudo)
+        except LeituraError as e:
+            print(f"lastro-agent: o laudo foi gerado, mas nao foi comitado.\n{e}",
+                  file=sys.stderr)
+            return 1
     return 0
 
 

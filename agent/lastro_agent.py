@@ -30,7 +30,7 @@ import subprocess
 import sys
 
 SCHEMA_VERSAO = "1"
-AGENTE_VERSAO = "1.5.1"
+AGENTE_VERSAO = "1.6.0"
 RAIZ = pathlib.Path(__file__).resolve().parent.parent   # raiz do repo do passaporte
 LAUDOS_DIR = RAIZ / "data" / "laudos"
 CADERNETA = RAIZ / "data" / "caderneta.json"
@@ -457,6 +457,215 @@ def comitar(laudo: dict):
               "publica depois do push.")
 
 
+# ----------------------------------- emissao sem conta (carimbo publico Rekor)
+# Para quem nao tem (nem quer ter) GitHub: o hash do laudo e depositado no
+# Rekor, o diario publico e append-only do projeto Sigstore (Linux Foundation).
+# O deposito nao exige conta; o timestamp do log e o carimbo de cartorio.
+# O resultado e um certificado-arquivo autocontido que o comprador confere
+# no site (conferir.html) contra o proprio log publico.
+
+REKOR = "https://rekor.sigstore.dev"
+
+
+def _dados_dir() -> pathlib.Path:
+    """Caderneta local (modo sem conta): onde o historico desta maquina vive."""
+    so = platform.system()
+    if so == "Windows":
+        base = pathlib.Path(os.environ.get("LOCALAPPDATA", pathlib.Path.home()))
+    elif so == "Darwin":
+        base = pathlib.Path.home() / "Library" / "Application Support"
+    else:
+        base = pathlib.Path(os.environ.get("XDG_DATA_HOME",
+                                           pathlib.Path.home() / ".local" / "share"))
+    d = base / "Lastro" / "laudos"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _caderneta_local(serie: str) -> list[dict]:
+    laudos = []
+    for arq in sorted(_dados_dir().glob("*.json")):
+        try:
+            l = json.loads(arq.read_text(encoding="utf-8"))
+            if l.get("serie") == serie:
+                laudos.append(l)
+        except (OSError, json.JSONDecodeError):
+            pass
+    laudos.sort(key=lambda l: l["aferido_em"])
+    return laudos
+
+
+def _carimbar_rekor(conteudo: bytes) -> dict:
+    """Deposita o sha256 do laudo no Rekor e retorna o recibo do carimbo.
+    A chave e efemera (gerada e descartada): ela so satisfaz o formato do log;
+    quem da fe e o timestamp do diario publico, nao a chave."""
+    import base64
+    try:
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+    except ImportError:
+        raise LeituraError("falta a biblioteca 'cryptography' para o carimbo publico.\n"
+                           "Instale com: pip install cryptography")
+    chave = ec.generate_private_key(ec.SECP256R1())
+    assinatura = chave.sign(conteudo, ec.ECDSA(hashes.SHA256()))
+    pub_pem = chave.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    digesto = hashlib.sha256(conteudo).hexdigest()
+    resposta = _api(f"{REKOR}/api/v1/log/entries", dados={
+        "apiVersion": "0.0.1", "kind": "hashedrekord",
+        "spec": {
+            "data": {"hash": {"algorithm": "sha256", "value": digesto}},
+            "signature": {
+                "content": base64.b64encode(assinatura).decode(),
+                "publicKey": {"content": base64.b64encode(pub_pem).decode()},
+            },
+        }})
+    uuid, entrada = next(iter(resposta.items()))
+    return {"registro": "rekor.sigstore.dev", "uuid": uuid,
+            "indice": entrada.get("logIndex"),
+            "integrado_em": dt.datetime.fromtimestamp(
+                entrada["integratedTime"], dt.timezone.utc).isoformat(timespec="seconds"),
+            "sha256": digesto}
+
+
+_CERT_MODELO = """<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lastro · certificado {serie}</title>
+<style>
+  :root{{--cedula:#E6E9DC;--tinta:#15251C;--soft:#3a4d41;--verde:#1E7B45;--ambar:#A9741A;--oxb:#8C2A22;
+        --linha:rgba(21,37,28,.16);--linhaf:rgba(21,37,28,.34)}}
+  *{{box-sizing:border-box}}
+  body{{margin:0;min-height:100vh;background:radial-gradient(120% 90% at 50% -10%,#16261d,#0e1a14 60%,#0a130e);
+       font-family:Georgia,'Times New Roman',serif;color:var(--tinta);display:flex;justify-content:center;
+       align-items:flex-start;padding:34px 16px 60px;line-height:1.5}}
+  .doc{{width:100%;max-width:560px;background:var(--cedula);border:1px solid rgba(0,0,0,.35);
+       box-shadow:0 40px 80px -30px rgba(0,0,0,.7);position:relative;padding:24px 26px 26px}}
+  .doc::after{{content:"";position:absolute;inset:8px;border:1.5px solid var(--linhaf);pointer-events:none}}
+  .mono{{font-family:'Courier New',monospace}}
+  .topo{{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1.5px solid var(--linhaf);
+        padding-bottom:12px;margin-bottom:14px}}
+  .marca{{font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:15px}}
+  .kicker{{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--soft)}}
+  .serie{{text-align:right;font-size:10.5px;color:var(--soft);line-height:1.7}}
+  .serie b{{color:var(--tinta)}}
+  h1{{font-size:19px;margin:0}}
+  .specs{{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--soft);margin:2px 0 14px}}
+  .prog{{text-align:center;margin:14px 0 16px}}
+  .prog .rotulo{{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--soft)}}
+  .prog .valor{{font-size:34px;font-weight:700;margin:4px 0 2px}}
+  .prog .sub{{font-size:12.5px}}
+  table{{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0 14px}}
+  td{{padding:6px 0;border-bottom:1px solid var(--linha)}}
+  td.d{{text-align:right;font-weight:700}} td.d .mono{{font-size:11.5px}}
+  .medidor{{height:6px;background:rgba(21,37,28,.09);border:1px solid var(--linha);margin-top:4px}}
+  .medidor i{{display:block;height:100%}}
+  .ok{{background:var(--verde)}} .warn{{background:var(--ambar)}} .bad{{background:var(--oxb)}}
+  .selo{{border-top:1.5px solid var(--linhaf);padding-top:14px;font-size:11px}}
+  .selo h3{{margin:0 0 6px;font-size:14px}}
+  .selo dl{{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:10.5px}}
+  .selo dt{{color:var(--soft)}} .selo dd{{margin:0;font-weight:700;overflow-wrap:anywhere}}
+  .conferir{{margin-top:12px;border:1.5px solid var(--linhaf);background:rgba(30,123,69,.07);padding:10px 12px;font-size:12px}}
+  .conferir a{{color:var(--verde)}}
+  .micro{{margin-top:14px;font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--soft);
+         text-align:center;border-top:1px solid var(--linha);padding-top:10px;line-height:1.8}}
+</style>
+<div class="doc">
+  <div class="topo">
+    <div><div class="marca">Lastro</div><div class="kicker">Certificado de saúde do equipamento</div></div>
+    <div class="serie mono">SÉRIE <b>{serie}</b><br>{n_laudos} aferição(ões)<br>emitido sem conta</div>
+  </div>
+  <h1>{modelo}</h1>
+  <div class="specs mono">{specs}</div>
+  <div class="prog"><div class="rotulo mono">{prog_rotulo}</div><div class="valor">{prog_valor}</div><div class="sub">{prog_sub}</div></div>
+  <table>{linhas_orgaos}</table>
+  {historico}
+  <div class="selo">
+    <h3>Selo de verificação</h3>
+    <dl class="mono">
+      <dt>carimbo</dt><dd>{carimbo_em} · diário público Rekor (Linux Foundation)</dd>
+      <dt>registro</dt><dd>{rekor_uuid_curto}… · índice {rekor_indice}</dd>
+      <dt>laudo sha256</dt><dd>{laudo_sha_curto}…</dd>
+      <dt>script</dt><dd>lastro-agent v{versao} · open source</dd>
+    </dl>
+    <div class="conferir">Recebeu este arquivo? Confira a autenticidade em
+      <a href="{site}/conferir.html">{site_curto}/conferir.html</a>: arraste este arquivo lá.
+      A página recalcula o hash e o compara com o registro público, sem depender de ninguém.</div>
+  </div>
+  <p class="micro">a data vem de um diário público append-only, não de quem emitiu · leitura feita por script
+     open-source no próprio equipamento · nenhum número é digitado à mão · lastro · lastro · lastro</p>
+</div>
+<script type="application/json" id="lastro-prova">{prova_json}</script>
+"""
+
+
+def _gerar_certificado(laudo: dict, historico: list[dict], carimbo: dict,
+                       laudo_bytes: bytes) -> pathlib.Path:
+    import base64
+    m = laudo["maquina"]
+    specs = " · ".join(str(s) for s in [
+        m.get("cpu") if m.get("cpu") not in (None, "desconhecido") else None,
+        f"{m['ram_gb']} GB" if m.get("ram_gb") else None,
+        f"SSD {m['armazenamento_gb']} GB" if m.get("armazenamento_gb") else None,
+        m.get("so")] if s)
+    nomes = {"ssd": "SSD (desgaste NAND)", "bateria": "Bateria",
+             "memoria": "Memória (pressão)", "termico": "Térmico"}
+    cores = {"saudavel": "ok", "atencao": "warn", "critico": "bad"}
+    linhas = ""
+    for org, dados in laudo["orgaos"].items():
+        pct = round(dados["desgaste"] * 100)
+        cru = dados.get("valor_cru") or f"{pct}% de desgaste"
+        linhas += (f"<tr><td>{nomes.get(org, org)}<div class='medidor'>"
+                   f"<i class='{cores[dados['estado']]}' style='width:{pct}%'></i></div></td>"
+                   f"<td class='d'><span class='mono'>{cru} · {dados['estado']}</span></td></tr>")
+    p = laudo.get("prognostico")
+    if p:
+        anos, meses = divmod(int(p["meses_restantes"]), 12)
+        partes = ([f"{anos} ano{'s' * (anos != 1)}"] if anos else []) + \
+                 ([f"{meses} mes{'es' * (meses != 1)}"] if meses or not anos else [])
+        prog = ("prognóstico de vida útil restante", "≈ " + " e ".join(partes),
+                f"gargalo: {p['gargalo']} · margem ±{p['margem_meses']} meses")
+    else:
+        prog = ("prognóstico", "primeira aferição",
+                "re-afira em algumas semanas para medir a taxa de desgaste")
+    historico_html = ""
+    if len(historico) > 1:
+        pontos = " · ".join(f"{l['aferido_em'][:10]}: {round(l['orgaos']['ssd']['desgaste']*100)}%"
+                            for l in historico)
+        historico_html = (f"<div class='specs mono' style='margin:0 0 14px'>caderneta (SSD): "
+                          f"{pontos}</div>")
+    prova = {"laudo_b64": base64.b64encode(laudo_bytes).decode(), "carimbo": carimbo}
+    html = _CERT_MODELO.format(
+        serie=laudo["serie"], n_laudos=len(historico), modelo=m["modelo"], specs=specs,
+        prog_rotulo=prog[0], prog_valor=prog[1], prog_sub=prog[2],
+        linhas_orgaos=linhas, historico=historico_html,
+        carimbo_em=carimbo["integrado_em"], rekor_uuid_curto=carimbo["uuid"][:16],
+        rekor_indice=carimbo["indice"], laudo_sha_curto=carimbo["sha256"][:16],
+        versao=laudo["agente"]["versao"], site=SITE, site_curto=SITE.split("//")[1],
+        prova_json=json.dumps(prova))
+    destino = pathlib.Path.cwd()
+    if not os.access(destino, os.W_OK):
+        destino = pathlib.Path.home()
+    arquivo = destino / f"lastro-certificado-{laudo['serie']}-{laudo['aferido_em'][:10]}.html"
+    arquivo.write_text(html, encoding="utf-8")
+    return arquivo
+
+
+def emitir_sem_conta(laudo: dict) -> pathlib.Path:
+    """Fluxo sem conta: caderneta local, prognostico, carimbo Rekor, certificado."""
+    historico = _caderneta_local(laudo["serie"])
+    prognostico = calcular_prognostico(laudo, historico)
+    if prognostico:
+        laudo["prognostico"] = prognostico
+    (_dados_dir() / f"{laudo['aferido_em'][:10]}.json").write_text(
+        _json_bonito(laudo), encoding="utf-8")
+    historico = historico + [laudo]
+    laudo_bytes = _json_bonito(laudo).encode("utf-8")
+    print("    depositando o hash no diario publico (Rekor)...")
+    carimbo = _carimbar_rekor(laudo_bytes)
+    print(f"    carimbado: {carimbo['integrado_em']} · indice {carimbo['indice']}")
+    return _gerar_certificado(laudo, historico, carimbo, laudo_bytes)
+
+
 # ------------------------------------------------- um clique (GitHub via API)
 # O fluxo do lastro.exe: le o hardware, autoriza no GitHub pelo Device Flow
 # (codigo de 8 letras, sem senha, sem git instalado), cria o repositorio de
@@ -633,13 +842,32 @@ def fluxo_um_clique() -> int:
     laudo = montar_laudo()
     ssd = laudo["orgaos"]["ssd"]
     print(f"    SSD: {ssd['valor_cru']} ({ssd['estado']})")
-    print("2/3 autorizando no GitHub (nada e enviado sem isso)...")
-    token = _autorizar_github()
-    print("3/3 publicando o laudo (o commit e o carimbo)...")
-    url = publicar_um_clique(laudo, token)
-    print(f"\npronto. Seu certificado:\n  {url}")
-    print(f"  versao para o anuncio: {url}&certificado")
-    webbrowser.open(url)
+
+    print("\n2/3 como quer emitir?")
+    print("  [1] certificado-arquivo, sem precisar de conta nenhuma (recomendado)")
+    print("      carimbo em diario publico; voce anexa o arquivo no anuncio")
+    print("  [2] link publico via GitHub (usa ou cria sua conta)")
+    print("      passaporte vivo com historico na nuvem")
+    try:
+        escolha = input("  escolha [1]: ").strip() or "1"
+    except EOFError:
+        escolha = "1"
+
+    if escolha == "2":
+        print("\n3/3 autorizando no GitHub (nada e enviado sem isso)...")
+        token = _autorizar_github()
+        print("    publicando o laudo (o commit e o carimbo)...")
+        url = publicar_um_clique(laudo, token)
+        print(f"\npronto. Seu certificado:\n  {url}")
+        print(f"  versao para o anuncio: {url}&certificado")
+        webbrowser.open(url)
+    else:
+        print("\n3/3 emitindo o certificado (nenhuma conta, nenhum cadastro)...")
+        arquivo = emitir_sem_conta(laudo)
+        print(f"\npronto. Seu certificado esta em:\n  {arquivo}")
+        print("  anexe este arquivo no anuncio; o comprador confere em "
+              f"{SITE}/conferir.html")
+        webbrowser.open(arquivo.as_uri())
     return 0
 
 

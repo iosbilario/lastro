@@ -1,5 +1,6 @@
 psutil>=5.9
+cryptography>=41   # assinatura efemera do carimbo publico (Rekor)
 # smartctl (smartmontools) e uma dependencia de SISTEMA, nao pip:
 #   Ubuntu/Debian: sudo apt install smartmontools
 #   macOS: brew install smartmontools
-#   Windows: choco install smartmontools
+#   Windows: winget install smartmontools.smartmontools

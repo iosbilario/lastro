@@ -129,17 +129,20 @@
   <!-- PASSO 2 : afericao real -->
   <section class="ficha">
     <p class="passo-label"><b>02</b> aferição real</p>
-    <h2>Um clique, na sua máquina</h2>
-    <p>Baixe o verificador e dê dois cliques. Ele pede a permissão de administrador (é ela que
-       autoriza a leitura SMART), lê o hardware e pergunta como emitir: <b>certificado-arquivo,
-       sem conta nenhuma</b> (carimbado num diário público, para anexar no anúncio), ou link
-       público via GitHub, para quem quiser o passaporte vivo na nuvem. Sem terminal, sem git.</p>
-    <div class="acoes" style="margin-top:4px">
-      <a class="btn" href="https://github.com/iosbilario/lastro/releases/latest/download/lastro.exe">Baixar o verificador · Windows</a>
+    <h2>Sem baixar nada, no Windows</h2>
+    <p>Aperte a tecla <b>Windows</b>, digite <b>powershell</b>, Enter. Cole a linha abaixo
+       (botão direito cola) e Enter. O Windows pede a permissão de administrador (é ela que
+       autoriza a leitura de desgaste) e você escolhe: <b>certificado-arquivo sem conta
+       nenhuma</b> (recomendado) ou link público via GitHub. Nada é baixado nem instalado:
+       a leitura usa as ferramentas do próprio Windows.</p>
+    <pre id="cmdGo" style="margin-top:4px">irm https://raw.githubusercontent.com/iosbilario/lastro/main/site/go.ps1 | iex</pre>
+    <div class="acoes">
+      <button class="btn" id="copiarGo">Copiar a linha</button>
     </div>
-    <p class="mini">o Windows pode mostrar "aplicativo não reconhecido" (SmartScreen): clique em
-       "Mais informações" e "Executar assim mesmo". O <a href="https://github.com/iosbilario/lastro/blob/main/agent/lastro_agent.py" style="color:var(--verde-lastro)">código é aberto</a>
-       e o hash de cada versão fica público em agent/releases.json.</p>
+    <p class="mini">o <a href="https://github.com/iosbilario/lastro/blob/main/site/go.ps1" style="color:var(--verde-lastro)">script é aberto</a>
+       e o hash de cada versão fica público em agent/releases.json · alternativa:
+       <a href="https://github.com/iosbilario/lastro/releases/latest/download/lastro.exe" style="color:var(--verde-lastro)">baixar o verificador em exe</a>
+       (o SmartScreen desconfia de exe novo: "Mais informações", "Executar assim mesmo")</p>
     <details style="margin-top:14px">
       <summary style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;color:var(--intaglio-soft)">Prefiro o terminal (Linux, macOS ou dev)</summary>
       <div class="abas" role="tablist" style="margin-top:12px">
@@ -224,6 +227,11 @@
 
   /* ---------- copiar ---------- */
   var toast=$('toast'),tmr;
+  $('copiarGo').addEventListener('click',function(){
+    try{ navigator.clipboard&&navigator.clipboard.writeText($('cmdGo').innerText.trim()); }catch(e){}
+    toast.classList.add('show');clearTimeout(tmr);
+    tmr=setTimeout(function(){toast.classList.remove('show');},2000);
+  });
   $('copiarCmd').addEventListener('click',function(){
     var texto=$('cmd').innerText.split("\n").filter(function(l){return l.trim()&&l.trim()[0]!=="#";}).join("\n");
     try{ navigator.clipboard&&navigator.clipboard.writeText(texto); }catch(e){}

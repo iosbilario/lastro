@@ -15,18 +15,16 @@ import re
 import sys
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
-AGENTE = RAIZ / "agent" / "lastro_agent.py"
 RELEASES = RAIZ / "agent" / "releases.json"
+
+# (arquivo, regex da versao, nome do artefato ou None para o script python)
+ARTEFATOS = [
+    (RAIZ / "agent" / "lastro_agent.py", r'AGENTE_VERSAO\s*=\s*"([^"]+)"', None),
+    (RAIZ / "site" / "go.ps1", r'\$VERSAO\s*=\s*"([^"]+)"', "go.ps1"),
+]
 
 
 def main() -> int:
-    codigo = AGENTE.read_bytes().replace(b"\r\n", b"\n")  # hash independente de checkout
-    sha = hashlib.sha256(codigo).hexdigest()
-    versao = re.search(r'AGENTE_VERSAO\s*=\s*"([^"]+)"', codigo.decode("utf-8"))
-    if not versao:
-        print("nao achei AGENTE_VERSAO no agente", file=sys.stderr)
-        return 1
-
     try:
         registro = json.loads(RELEASES.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -36,17 +34,26 @@ def main() -> int:
             "releases": {},
         }
 
-    if sha in registro["releases"]:
-        print(f"ja registrado: {sha[:12]}… (v{registro['releases'][sha]['versao']})")
-        return 0
+    for arquivo, padrao, artefato in ARTEFATOS:
+        if not arquivo.exists():
+            continue
+        codigo = arquivo.read_bytes().replace(b"\r\n", b"\n")  # hash independente de checkout
+        sha = hashlib.sha256(codigo).hexdigest()
+        versao = re.search(padrao, codigo.decode("utf-8"))
+        if not versao:
+            print(f"nao achei a versao em {arquivo.name}", file=sys.stderr)
+            return 1
+        if sha in registro["releases"]:
+            print(f"ja registrado: {arquivo.name} {sha[:12]}… (v{registro['releases'][sha]['versao']})")
+            continue
+        entrada = {"versao": versao.group(1), "registrado_em": dt.date.today().isoformat()}
+        if artefato:
+            entrada["artefato"] = artefato
+        registro["releases"][sha] = entrada
+        print(f"registrado: {arquivo.name} v{versao.group(1)} · sha256 {sha[:12]}…")
 
-    registro["releases"][sha] = {
-        "versao": versao.group(1),
-        "registrado_em": dt.date.today().isoformat(),
-    }
     RELEASES.write_text(json.dumps(registro, ensure_ascii=False, indent=2) + "\n",
                         encoding="utf-8")
-    print(f"registrado: v{versao.group(1)} · sha256 {sha[:12]}…")
     return 0
 
 

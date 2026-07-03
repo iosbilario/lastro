@@ -44,6 +44,11 @@
       "versao": "1.6.1",
       "registrado_em": "2026-07-03",
       "artefato": "lastro.exe"
+    },
+    "238f56b1b4f73b2baa149ec8b2869175dab43818b0b56348bd09bf2000fc814d": {
+      "versao": "1.7.0",
+      "registrado_em": "2026-07-03",
+      "artefato": "go.ps1"
     }
   }
 }

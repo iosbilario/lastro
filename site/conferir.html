@@ -100,6 +100,7 @@
   "use strict";
   var $=function(id){return document.getElementById(id);};
   var REKOR="https://rekor.sigstore.dev";
+  var BASE=location.pathname.indexOf('/site/')>=0?'..':'.';
 
   function hex(buf){
     return Array.prototype.map.call(new Uint8Array(buf),function(b){return b.toString(16).padStart(2,"0");}).join("");
@@ -155,7 +156,7 @@
           check("data do carimbo (dada pelo diário, não pelo vendedor)","ok",quando+" · índice "+entrada.logIndex);
           if(!c2){ veredito("bad","NÃO CONFERE · o registro público não corresponde"); return; }
 
-          fetch("agent/releases.json").then(function(r){return r.ok?r.json():null;}).then(function(rel){
+          fetch(BASE+"/agent/releases.json").then(function(r){return r.ok?r.json():null;}).then(function(rel){
             var oficial=rel&&rel.releases&&rel.releases[laudo.agente.sha256];
             check("laudo gerado pelo script oficial do Lastro",oficial?"ok":"bad",
               oficial?("lastro-agent v"+laudo.agente.versao):"sha256 do agente fora das releases conhecidas");

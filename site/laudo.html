@@ -668,10 +668,10 @@
     }
     $('seloLaudos').textContent=laudos.length+" commit"+(laudos.length>1?"s":"")+" · inforjável";
 
-    /* carimbo do commit: só o GitHub pode dar. No Pages, busca o commit real
-       de data/latest.json pela API pública; fora dele, diz a verdade. */
+    /* carimbo do commit: só o GitHub pode dar. Com ?p, o repo do passaporte;
+       no Pages sem ?p, este próprio repo; local sem ?p, diz a verdade. */
     var m=location.hostname.match(/^([^.]+)\.github\.io$/);
-    var repo=m?m[1]+"/"+location.pathname.split("/")[1]:null;
+    var repo=passaporte||(m?m[1]+"/"+location.pathname.split("/")[1]:null);
     if(repo){
       fetch("https://api.github.com/repos/"+repo+"/commits?path=data/latest.json&per_page=1")
         .then(function(r){ return r.ok?r.json():null; })
@@ -689,19 +689,24 @@
   }
 
   /* ---------- carga ---------- */
+  /* ?p=usuario/repo : renderiza o passaporte de QUALQUER repo publico via raw.
+     Sem ?p, renderiza os dados deste proprio repo (modo dev / demo). */
+  var params=new URLSearchParams(location.search);
+  var passaporte=(params.get('p')||"").match(/^[\w.-]+\/[\w.-]+$/)?params.get('p'):null;
   var base=location.pathname.indexOf('/site/')>=0?'..':'.';
+  var dataBase=passaporte?"https://raw.githubusercontent.com/"+passaporte+"/main":base;
   function j(url){ return fetch(url).then(function(r){ if(!r.ok) throw new Error(url+" ("+r.status+")"); return r.json(); }); }
 
-  if(/(^|[?&])certificado([=&]|$)/.test(location.search)) document.body.classList.add('leitor');
+  if(params.has('certificado')) document.body.classList.add('leitor');
 
   Promise.all([
-    j(base+"/data/caderneta.json"),
-    j(base+"/data/latest.json"),
+    j(dataBase+"/data/caderneta.json"),
+    j(dataBase+"/data/latest.json"),
     j(base+"/data/observatorio.json").catch(function(){ return null; }),
     j(base+"/agent/releases.json").catch(function(){ return null; })
   ]).then(function(res){
     var manifesto=res[0], latest=res[1], obs=res[2], releases=res[3];
-    return Promise.all(manifesto.laudos.map(function(n){ return j(base+"/data/laudos/"+n); }))
+    return Promise.all(manifesto.laudos.map(function(n){ return j(dataBase+"/data/laudos/"+n); }))
       .then(function(laudos){
         laudos.sort(function(a,b){ return a.aferido_em<b.aferido_em?-1:1; });
         var gargalo=(latest.prognostico&&latest.prognostico.gargalo)||"ssd";
@@ -722,8 +727,8 @@
 
   /* ---------- ações ---------- */
   $('copyBtn').addEventListener('click',function(){
-    var publicado=/\.github\.io$/.test(location.hostname);
-    var url=location.origin+location.pathname+"?certificado";
+    var publicado=/\.github\.io$/.test(location.hostname)||!!passaporte;
+    var url=location.origin+location.pathname+(passaporte?"?p="+passaporte+"&certificado":"?certificado");
     try{ navigator.clipboard&&navigator.clipboard.writeText(url); }catch(e){}
     ping(publicado?"link do certificado copiado · cole no anúncio"
                   :"link local copiado · publique no GitHub para valer como certificado");

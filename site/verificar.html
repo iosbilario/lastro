@@ -80,6 +80,8 @@
   .aviso{border:1.5px solid var(--linha-forte);background:rgba(169,116,26,.1);padding:10px 12px;
     font-size:12.5px;margin-top:12px}
   .aviso b{color:var(--desgaste)}
+  #notaSo{margin:0 0 10px;font-family:"Space Mono",monospace;font-size:11px}
+  #notaSo.destaque{border-color:var(--vencido);background:rgba(140,42,34,.1);color:var(--vencido);font-weight:700}
 
   .toast{
     position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
@@ -135,6 +137,7 @@
       <button class="aba" data-so="mac" role="tab">macOS</button>
       <button class="aba" data-so="win" role="tab">Windows</button>
     </div>
+    <div class="aviso" id="notaSo"></div>
     <pre id="cmd"></pre>
     <div class="acoes">
       <button class="btn" id="copiarCmd">Copiar comandos</button>
@@ -186,16 +189,23 @@
       "git clone "+REPO+" && cd lastro\n"+
       "brew install smartmontools && pip3 install -r agent/requirements.txt\n"+
       "sudo python3 agent/lastro_agent.py --emitir --commit && git push",
-    win:"<span class='c'># PowerShell como administrador</span>\n"+
-      "git clone "+REPO+"; cd lastro\n"+
-      "choco install smartmontools -y; pip install -r agent/requirements.txt\n"+
+    win:"git clone "+REPO+"; cd lastro\n"+
+      "winget install smartmontools.smartmontools\n"+
+      "pip install -r agent/requirements.txt\n"+
       "python agent\\lastro_agent.py --emitir --commit; git push"
+  };
+  var NOTAS={
+    linux:"o sudo é para a leitura SMART do disco, e para nada mais",
+    mac:"o sudo é para a leitura SMART do disco, e para nada mais",
+    win:"⚠ abra o PowerShell COMO ADMINISTRADOR: botão direito no ícone, 'Executar como administrador'. Sem isso a instalação e a leitura SMART falham."
   };
   var abas=document.querySelectorAll('.aba');
   function mostrar(so){
     abas.forEach(function(a){a.setAttribute('aria-selected',String(a.dataset.so===so));});
     $('cmd').innerHTML=CMDS[so];
     $('cmd').dataset.so=so;
+    $('notaSo').textContent=NOTAS[so];
+    $('notaSo').className=so==="win"?"aviso destaque":"aviso";
   }
   abas.forEach(function(a){a.addEventListener('click',function(){mostrar(a.dataset.so);});});
   mostrar(CMDS[soDetectado]?soDetectado:"linux");
@@ -203,7 +213,7 @@
   /* ---------- copiar ---------- */
   var toast=$('toast'),tmr;
   $('copiarCmd').addEventListener('click',function(){
-    var texto=$('cmd').innerText.split("\n").slice(1).join("\n"); // sem o comentario
+    var texto=$('cmd').innerText.split("\n").filter(function(l){return l.trim()&&l.trim()[0]!=="#";}).join("\n");
     try{ navigator.clipboard&&navigator.clipboard.writeText(texto); }catch(e){}
     toast.classList.add('show');clearTimeout(tmr);
     tmr=setTimeout(function(){toast.classList.remove('show');},2000);

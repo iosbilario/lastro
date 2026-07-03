@@ -4,7 +4,20 @@ O unico componente que le o hardware. Roda uma vez (ou periodicamente), gera um
 `laudo.json` e o comita no seu repositorio de passaporte. O site nunca le
 hardware, so renderiza o commit. E dai que vem a confianca do selo.
 
-## Rodar (Linux, a plataforma do v1)
+## Um clique (Windows, para quem nao e dev)
+
+Baixe o `lastro.exe` na release mais recente e de dois cliques. Ele pede a
+permissao de administrador (UAC), le o hardware, autoriza no GitHub pelo
+Device Flow (um codigo de 8 letras, sem senha), cria o repositorio
+`lastro-passaporte` na sua conta se preciso e publica o laudo como um commit
+via API. Sem git, sem terminal. O mesmo fluxo existe como
+`python lastro_agent.py --um-clique`.
+
+O exe embute o `smartctl` do smartmontools (GPL; fonte em
+https://github.com/smartmontools/smartmontools) e seu sha256 fica registrado
+em `releases.json`, como o do script.
+
+## Rodar no terminal (Linux, a plataforma original do v1)
 
 ```bash
 pip install -r requirements.txt

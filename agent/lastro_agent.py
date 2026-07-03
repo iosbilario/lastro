@@ -30,7 +30,7 @@ import subprocess
 import sys
 
 SCHEMA_VERSAO = "1"
-AGENTE_VERSAO = "1.4.1"
+AGENTE_VERSAO = "1.5.0"
 RAIZ = pathlib.Path(__file__).resolve().parent.parent   # raiz do repo do passaporte
 LAUDOS_DIR = RAIZ / "data" / "laudos"
 CADERNETA = RAIZ / "data" / "caderneta.json"
@@ -42,10 +42,15 @@ class LeituraError(RuntimeError):
 
 
 def _sha256_de_mim() -> str:
-    """sha256 do proprio arquivo, para proveniencia no laudo. Fins de linha
-    normalizados: a mesma release tem o mesmo hash em qualquer checkout."""
-    with open(__file__, "rb") as f:
-        return hashlib.sha256(f.read().replace(b"\r\n", b"\n")).hexdigest()
+    """sha256 do artefato que esta rodando, para proveniencia no laudo. No exe
+    empacotado, e o hash do executavel; no script, do .py com fins de linha
+    normalizados (a mesma release tem o mesmo hash em qualquer checkout)."""
+    alvo = sys.executable if getattr(sys, "frozen", False) else __file__
+    with open(alvo, "rb") as f:
+        conteudo = f.read()
+    if not getattr(sys, "frozen", False):
+        conteudo = conteudo.replace(b"\r\n", b"\n")
+    return hashlib.sha256(conteudo).hexdigest()
 
 
 # ---------------------------------------------------------------- identidade
@@ -146,8 +151,12 @@ def ler_maquina(armazenamento_gb: float | None) -> dict:
 # ----------------------------------------------------------------- SSD/SMART
 
 def _acha_smartctl() -> str | None:
-    """Procura o smartctl no PATH e, no Windows, na pasta padrao de instalacao
-    (instalacao recem-feita nao entra no PATH da sessao atual)."""
+    """Procura o smartctl no pacote do exe, no PATH e, no Windows, na pasta
+    padrao de instalacao (instalacao recem-feita nao entra no PATH da sessao)."""
+    if getattr(sys, "frozen", False):
+        embutido = pathlib.Path(getattr(sys, "_MEIPASS", "")) / "smartmontools" / "smartctl.exe"
+        if embutido.exists():
+            return str(embutido)
     exe = shutil.which("smartctl")
     if exe:
         return exe
@@ -448,11 +457,190 @@ def comitar(laudo: dict):
               "publica depois do push.")
 
 
+# ------------------------------------------------- um clique (GitHub via API)
+# O fluxo do lastro.exe: le o hardware, autoriza no GitHub pelo Device Flow
+# (codigo de 8 letras, sem senha, sem git instalado), cria o repositorio de
+# passaporte do usuario se preciso e publica o laudo como UM commit via API.
+# O commit continua sendo o carimbo; so muda quem digita.
+
+CLIENT_ID = "Ov23liWw9JYNfAI8V5in"      # OAuth App "Lastro" (Device Flow); nao e segredo
+REPO_PASSAPORTE = "lastro-passaporte"
+SITE = "https://iosbilario.github.io/lastro"
+
+
+def _api(url: str, token: str | None = None, dados: dict | None = None,
+         metodo: str | None = None) -> dict:
+    import urllib.error
+    import urllib.request
+    corpo = json.dumps(dados).encode() if dados is not None else None
+    req = urllib.request.Request(url, data=corpo,
+                                 method=metodo or ("POST" if corpo else "GET"))
+    req.add_header("Accept", "application/vnd.github+json"
+                   if "api.github.com" in url else "application/json")
+    req.add_header("Content-Type", "application/json")
+    if token:
+        req.add_header("Authorization", "Bearer " + token)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        raise LeituraError(f"GitHub respondeu {e.code} em {url}:\n"
+                           f"{e.read().decode(errors='replace')[:300]}")
+    except OSError as e:
+        raise LeituraError(f"sem conexao com o GitHub ({e}). Verifique a rede e rode de novo.")
+
+
+def _autorizar_github() -> str:
+    """Device Flow: mostra um codigo, o usuario autoriza no navegador."""
+    import time
+    import webbrowser
+    d = _api("https://github.com/login/device/code",
+             dados={"client_id": CLIENT_ID, "scope": "public_repo"})
+    if "user_code" not in d:
+        raise LeituraError(f"nao consegui iniciar a autorizacao: {d}")
+    print("\n=== autorizacao no GitHub ===")
+    print(f"  1) vou abrir {d['verification_uri']} no seu navegador")
+    print(f"  2) digite este codigo:  {d['user_code']}")
+    print("  aguardando a autorizacao...")
+    webbrowser.open(d["verification_uri"])
+    intervalo = int(d.get("interval", 5))
+    while True:
+        time.sleep(intervalo)
+        r = _api("https://github.com/login/oauth/access_token", dados={
+            "client_id": CLIENT_ID, "device_code": d["device_code"],
+            "grant_type": "urn:ietf:params:oauth:grant-type:device_code"})
+        if "access_token" in r:
+            print("  autorizado.")
+            return r["access_token"]
+        erro = r.get("error")
+        if erro == "authorization_pending":
+            continue
+        if erro == "slow_down":
+            intervalo += 5
+            continue
+        if erro == "expired_token":
+            raise LeituraError("o codigo expirou antes da autorizacao. Rode de novo.")
+        raise LeituraError(f"autorizacao nao concluida: {erro or r}")
+
+
+def _historico_remoto(login: str) -> tuple[list[dict], dict]:
+    """Laudos ja publicados no passaporte remoto (para prognostico e manifesto)."""
+    import urllib.request
+    raw = f"https://raw.githubusercontent.com/{login}/{REPO_PASSAPORTE}/main"
+
+    def pega(caminho: str):
+        try:
+            with urllib.request.urlopen(f"{raw}/{caminho}", timeout=15) as r:
+                return json.loads(r.read())
+        except Exception:
+            return None
+
+    manifesto = pega("data/caderneta.json")
+    if not manifesto or manifesto.get("sample"):
+        manifesto = {"descricao": ("Indice da Caderneta, mantido pelo lastro-agent. "
+                                   "O site descobre os laudos por aqui."),
+                     "sample": False, "laudos": []}
+        return [], manifesto
+    laudos = []
+    for nome in manifesto.get("laudos", []):
+        l = pega(f"data/laudos/{nome}")
+        if l:
+            laudos.append(l)
+    laudos.sort(key=lambda l: l["aferido_em"])
+    return laudos, manifesto
+
+
+def publicar_um_clique(laudo: dict, token: str) -> str:
+    """Cria o repo de passaporte se preciso e publica o laudo como um commit."""
+    import time
+    login = _api("https://api.github.com/user", token)["login"]
+    base = f"https://api.github.com/repos/{login}/{REPO_PASSAPORTE}"
+    try:
+        _api(base, token)
+    except LeituraError:
+        print(f"criando o seu repositorio de passaporte: {login}/{REPO_PASSAPORTE}")
+        _api("https://api.github.com/user/repos", token, {
+            "name": REPO_PASSAPORTE,
+            "description": "Passaporte de saude do meu equipamento (Lastro).",
+            "homepage": f"{SITE}/laudo.html?p={login}/{REPO_PASSAPORTE}",
+            "auto_init": True})
+        _api(f"{base}/topics", token, {"names": ["lastro-passaporte"]}, metodo="PUT")
+
+    historico, manifesto = _historico_remoto(login)
+    prognostico = calcular_prognostico(laudo, historico)
+    if prognostico:
+        laudo["prognostico"] = prognostico
+
+    ref = None
+    for _ in range(10):     # repo recem-criado pode demorar a expor o branch
+        try:
+            ref = _api(f"{base}/git/ref/heads/main", token)
+            break
+        except LeituraError:
+            time.sleep(1.5)
+    if not ref:
+        raise LeituraError("o repositorio foi criado mas o branch main nao apareceu. Rode de novo.")
+
+    pai = ref["object"]["sha"]
+    arvore_pai = _api(f"{base}/git/commits/{pai}", token)["tree"]["sha"]
+    nome = laudo["aferido_em"][:10] + ".json"
+    if nome not in manifesto["laudos"]:
+        manifesto["laudos"].append(nome)
+        manifesto["laudos"].sort()
+    arquivos = {
+        f"data/laudos/{nome}": _json_bonito(laudo),
+        "data/latest.json": _json_bonito(laudo),
+        "data/caderneta.json": _json_bonito(manifesto),
+    }
+    arvore = _api(f"{base}/git/trees", token, {
+        "base_tree": arvore_pai,
+        "tree": [{"path": p, "mode": "100644", "type": "blob", "content": c}
+                 for p, c in arquivos.items()]})
+    commit = _api(f"{base}/git/commits", token, {
+        "message": f"laudo: afericao {laudo['aferido_em'][:10]} (serie {laudo['serie']})",
+        "tree": arvore["sha"], "parents": [pai]})
+    _api(f"{base}/git/refs/heads/main", token, {"sha": commit["sha"]}, metodo="PATCH")
+    print(f"laudo publicado: commit {commit['sha'][:7]} em {login}/{REPO_PASSAPORTE}")
+    return f"{SITE}/laudo.html?p={login}/{REPO_PASSAPORTE}"
+
+
+def fluxo_um_clique() -> int:
+    import webbrowser
+    print("Lastro : passaporte de saude do equipamento")
+    print("1/3 lendo o hardware desta maquina...")
+    laudo = montar_laudo()
+    ssd = laudo["orgaos"]["ssd"]
+    print(f"    SSD: {ssd['valor_cru']} ({ssd['estado']})")
+    print("2/3 autorizando no GitHub (nada e enviado sem isso)...")
+    token = _autorizar_github()
+    print("3/3 publicando o laudo (o commit e o carimbo)...")
+    url = publicar_um_clique(laudo, token)
+    print(f"\npronto. Seu certificado:\n  {url}")
+    print(f"  versao para o anuncio: {url}&certificado")
+    webbrowser.open(url)
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description="lastro-agent")
     p.add_argument("--emitir", action="store_true", help="gera e imprime o laudo")
     p.add_argument("--commit", action="store_true", help="grava o laudo na Caderneta e comita")
+    p.add_argument("--um-clique", action="store_true",
+                   help="fluxo completo via GitHub API (o que o lastro.exe roda)")
     args = p.parse_args(argv)
+
+    if args.um_clique or (getattr(sys, "frozen", False) and not args.emitir):
+        try:
+            return fluxo_um_clique()
+        except LeituraError as e:
+            print(f"\nlastro-agent: parou sem publicar nada.\n{e}", file=sys.stderr)
+            return 1
+        finally:
+            if getattr(sys, "frozen", False):
+                try:
+                    input("\npressione Enter para fechar")
+                except EOFError:
+                    pass
 
     if not args.emitir:
         p.print_help()

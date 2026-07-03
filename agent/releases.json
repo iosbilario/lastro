@@ -8,6 +8,15 @@
     "482afd7b144671cefb235134c3e164ef52d4dfac24e8fb572fe5bc5cf92b2cee": {
       "versao": "1.4.1",
       "registrado_em": "2026-07-03"
+    },
+    "8b81e173863dd7144012a26ab9d31a4e3807c6872d2f711713f775aac7091256": {
+      "versao": "1.5.0",
+      "registrado_em": "2026-07-03"
+    },
+    "95eb4a0941fec76363f72d090accc98cb8549751979b5b3809b0316df6bac4f6": {
+      "versao": "1.5.0",
+      "registrado_em": "2026-07-03",
+      "artefato": "lastro.exe"
     }
   }
 }

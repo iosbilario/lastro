@@ -1,0 +1,12 @@
+{
+  "descricao": "Indice da Caderneta. O site le este arquivo para descobrir os laudos sem precisar de servidor; o lastro-agent o reescreve a cada --commit. Enquanto sample=true, tudo aqui e EXEMPLO para o site ter o que renderizar.",
+  "sample": true,
+  "laudos": [
+    "2026-01-15.json",
+    "2026-02-14.json",
+    "2026-03-16.json",
+    "2026-04-15.json",
+    "2026-05-16.json",
+    "2026-07-03.json"
+  ]
+}

@@ -46,6 +46,7 @@ separacao que torna o selo verificavel: o dado nasce local, o GitHub carimba.
     site/laudo.schema.json          o contrato do laudo (amarra tudo)
     agent/lastro_agent.py           le o hardware, emite e comita o laudo
     data/laudos/*.json              a Caderneta (o historico = o banco temporal)
+    data/caderneta.json             indice da Caderneta (o site descobre os laudos por aqui)
     data/observatorio.json          saida do agregador
     .github/workflows/              agregador noturno + validador de schema
 

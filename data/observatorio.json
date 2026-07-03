@@ -3,7 +3,7 @@
   "modelos": {
     "Dell Inspiron 15 3583": {
       "amostra": 1284,
-      "desgaste_ssd_mediano_por_mes": 0.0105,
+      "desgaste_ssd_mediano_por_mes": 0.047,
       "distribuicao_meses_ate_fim": {
         "p10": 14,
         "p50": 34,

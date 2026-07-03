@@ -1,68 +1,718 @@
 <!doctype html>
 <!--
-  Lastro : site (GitHub Pages). ESQUELETO orientado a dados.
-
-  A fonte de verdade VISUAL e ../design/lastro-passaporte.html (o laudo em papel-cedula,
-  com o selo guilloche, a Caderneta e o Observatorio). O trabalho do Claude Code aqui e:
-  PORTAR aquele markup/CSS para ca e LIGAR cada campo ao laudo.json abaixo, em vez dos
-  valores fixos do mockup. Este arquivo so prova o carregamento dos dados.
-
+  Lastro : site (GitHub Pages). Porte fiel de design/lastro-passaporte.html.
   Nada de backend: tudo e fetch de JSON estatico versionado no repo.
+    data/caderneta.json  -> indice da Caderneta (+ flag de sample)
+    data/laudos/*.json   -> cada afericao (um commit por laudo)
+    data/latest.json     -> o laudo corrente (o Certificado)
+    data/observatorio.json -> agregado da frota, por modelo
 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lastro : passaporte de saude</title>
+<title>Lastro — Passaporte de Saúde</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
 <style>
-  body{font-family:system-ui,sans-serif;max-width:620px;margin:40px auto;padding:0 18px;color:#15251C}
-  .todo{border:1.5px dashed #A9741A;background:#fdf6e8;padding:12px 14px;font-size:13px;margin-bottom:24px}
-  h1{font-size:20px} .big{font-size:40px;font-weight:700} pre{background:#f3f4ee;padding:12px;overflow:auto;font-size:12px}
+  :root{
+    --cedula:#E6E9DC;        /* papel-cédula esverdeado (NÃO creme quente) */
+    --cedula-2:#DEE2D2;
+    --intaglio:#15251C;      /* tinta-cofre: verde-quase-preto de segurança */
+    --intaglio-soft:#3a4d41;
+    --verde-lastro:#1E7B45;  /* verde-cédula = "verificado / lastreado" (também o verde do commit) */
+    --desgaste:#A9741A;      /* âmbar: só como cor de dado (medidor de desgaste) */
+    --vencido:#8C2A22;       /* oxblood: fim de vida, usado com parcimônia */
+    --linha:rgba(21,37,28,.16);
+    --linha-forte:rgba(21,37,28,.34);
+    --desk:#0e1a14;          /* a mesa: o laudo pousa sobre um verde escuro, como objeto físico */
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:
+      radial-gradient(120% 90% at 50% -10%, #16261d 0%, var(--desk) 60%, #0a130e 100%);
+    color:var(--intaglio);
+    font-family:"Spectral",Georgia,serif;
+    line-height:1.5;
+    padding:40px 18px 72px;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+  }
+  ::selection{background:var(--intaglio);color:var(--cedula)}
+
+  /* ---------- o documento ---------- */
+  .doc{
+    width:100%;
+    max-width:620px;
+    background:
+      linear-gradient(var(--cedula),var(--cedula));
+    position:relative;
+    box-shadow:0 40px 80px -30px rgba(0,0,0,.7), 0 4px 0 rgba(0,0,0,.25);
+    border:1px solid rgba(0,0,0,.35);
+  }
+  /* guilhochê sutil de fundo, injetado via JS (svg data-uri) */
+  .doc::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:var(--guilloche-bg);
+    background-size:340px 340px;
+    opacity:.5;mix-blend-mode:multiply;
+  }
+  .frame{position:relative;padding:26px 30px 30px}
+  /* moldura em intaglio */
+  .doc::after{
+    content:"";position:absolute;inset:9px;pointer-events:none;
+    border:1.5px solid var(--linha-forte);
+  }
+
+  /* ---------- faixa de dados de exemplo ---------- */
+  .sample-banner{
+    display:none;
+    position:relative;z-index:2;
+    background:repeating-linear-gradient(-45deg,var(--desgaste) 0 14px,#8f5f12 14px 28px);
+    color:#fdf6e8;
+    font-family:"Space Mono",monospace;font-size:10.5px;font-weight:700;
+    letter-spacing:.14em;text-transform:uppercase;text-align:center;
+    padding:7px 12px;
+  }
+  .doc.sample .sample-banner{display:block}
+
+  /* ---------- estado de erro ---------- */
+  .erro{
+    display:none;position:relative;z-index:2;
+    font-family:"Space Mono",monospace;font-size:12px;
+    padding:18px 22px;color:var(--vencido);
+  }
+
+  /* ---------- cabeçalho ---------- */
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;position:relative}
+  .mark{display:flex;flex-direction:column;gap:2px}
+  .wordmark{
+    font-family:"Fraunces",serif;font-weight:600;letter-spacing:.14em;
+    font-size:15px;text-transform:uppercase;color:var(--intaglio);
+    display:flex;align-items:center;gap:8px;
+  }
+  .wordmark svg{display:block}
+  .kicker{
+    font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--intaglio-soft);
+  }
+  .serial{text-align:right;font-family:"Space Mono",monospace;font-size:10.5px;color:var(--intaglio-soft);line-height:1.7}
+  .serial b{color:var(--intaglio);font-weight:700;letter-spacing:.04em}
+
+  .rule{height:1.5px;background:var(--linha-forte);margin:18px 0 0;position:relative}
+  .rule.thin{height:1px;background:var(--linha);margin:20px 0}
+
+  /* ---------- identidade da máquina ---------- */
+  .ident{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-top:16px;flex-wrap:wrap}
+  .machine{font-family:"Fraunces",serif;font-size:19px;font-weight:500;letter-spacing:.005em}
+  .machine small{display:block;font-family:"Space Mono",monospace;font-size:10px;font-weight:400;color:var(--intaglio-soft);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
+  .emitido{font-family:"Space Mono",monospace;font-size:11px;color:var(--intaglio-soft);text-align:right;line-height:1.7}
+  .emitido b{color:var(--intaglio);font-weight:700}
+
+  /* ---------- a denominação (prognóstico) ---------- */
+  .denom{
+    margin-top:22px;text-align:center;position:relative;
+    padding:8px 0 4px;
+  }
+  .denom .eyebrow{
+    font-family:"Space Mono",monospace;font-size:10.5px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--intaglio-soft);
+  }
+  .denom .value{
+    font-family:"Fraunces",serif;font-weight:600;
+    font-size:clamp(40px,10vw,60px);line-height:1.02;letter-spacing:-.01em;
+    margin:6px 0 2px;color:var(--intaglio);
+    font-variant-numeric:lining-nums;
+  }
+  .denom .value.muted{font-size:clamp(24px,6vw,34px);color:var(--intaglio-soft)}
+  .denom .value .approx{font-size:.55em;vertical-align:.18em;color:var(--intaglio-soft);font-weight:500}
+  .denom .sub{font-size:13.5px;color:var(--intaglio)}
+  .denom .conf{
+    font-family:"Space Mono",monospace;font-size:10.5px;color:var(--intaglio-soft);
+    margin-top:7px;letter-spacing:.02em;
+  }
+  .denom .conf b{color:var(--verde-lastro);font-weight:700}
+
+  /* ---------- órgãos vitais ---------- */
+  .sec-label{
+    font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--intaglio-soft);
+    display:flex;align-items:center;gap:10px;margin:0 0 12px;
+  }
+  .sec-label::after{content:"";flex:1;height:1px;background:var(--linha)}
+
+  .organ{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--linha)}
+  .organ:last-child{border-bottom:0}
+  .organ .name{font-size:14px;font-weight:500}
+  .organ .name span{font-family:"Space Mono",monospace;font-size:10px;color:var(--intaglio-soft);text-transform:uppercase;letter-spacing:.08em;margin-left:8px}
+  .organ .read{font-family:"Space Mono",monospace;font-size:13px;font-weight:700;text-align:right;letter-spacing:.02em}
+  .meter{grid-column:1 / -1;height:7px;background:rgba(21,37,28,.09);position:relative;overflow:hidden;border:1px solid var(--linha)}
+  .meter i{position:absolute;inset:0 auto 0 0;display:block;transition:width .7s cubic-bezier(.2,.7,.2,1)}
+  /* hachura de intaglio dentro da barra */
+  .meter i::after{content:"";position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.22) 0 1px,transparent 1px 4px)}
+  .ok  i{background:var(--verde-lastro)}
+  .warn i{background:var(--desgaste)}
+  .bad i{background:var(--vencido)}
+  .tag{font-family:"Space Mono",monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border:1px solid currentColor;border-radius:1px;margin-left:8px;vertical-align:1px}
+  .tag.ok{color:var(--verde-lastro)} .tag.warn{color:var(--desgaste)} .tag.bad{color:var(--vencido)}
+
+  /* ---------- caderneta / curva (hodômetro) ---------- */
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  @media(max-width:520px){.two{grid-template-columns:1fr;gap:22px}}
+  .chart{position:relative}
+  .chart svg{display:block;width:100%;height:auto;overflow:visible}
+  .chart .cap{font-family:"Space Mono",monospace;font-size:9.5px;color:var(--intaglio-soft);margin-top:6px;letter-spacing:.02em}
+  .chart .cap b{color:var(--intaglio)}
+
+  /* ---------- recomendação-lastro ---------- */
+  .reco{
+    margin-top:4px;border:1.5px solid var(--linha-forte);
+    background:rgba(30,123,69,.06);
+    padding:14px 16px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  }
+  .reco .txt{max-width:62%}
+  .reco .txt h4{margin:0 0 3px;font-family:"Fraunces",serif;font-weight:600;font-size:16px}
+  .reco .txt p{margin:0;font-size:12.5px;color:var(--intaglio)}
+  .reco .txt p b{color:var(--verde-lastro)}
+  .btn{
+    font-family:"Space Mono",monospace;font-size:11px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;cursor:pointer;
+    background:var(--intaglio);color:var(--cedula);border:1.5px solid var(--intaglio);
+    padding:9px 14px;border-radius:1px;transition:transform .12s ease, background .15s ease;
+  }
+  .btn:hover{transform:translateY(-1px)}
+  .btn:active{transform:translateY(0)}
+  .btn.ghost{background:transparent;color:var(--intaglio)}
+  .btn:focus-visible{outline:2px solid var(--verde-lastro);outline-offset:2px}
+
+  /* ---------- selo de verificação (a assinatura) ---------- */
+  .seal-wrap{
+    margin-top:22px;display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;
+    border-top:1.5px solid var(--linha-forte);padding-top:20px;
+  }
+  @media(max-width:520px){.seal-wrap{grid-template-columns:1fr;justify-items:center;text-align:center}}
+  .seal{width:104px;height:104px;position:relative;flex-shrink:0}
+  /* so o anel guilhoche ocupa o selo inteiro; o check interno fica nos 18px do mockup */
+  .seal > svg{position:absolute;inset:0;width:100%;height:100%}
+  .seal .core{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  }
+  .seal .core .chk{color:var(--verde-lastro)}
+  .seal .core .hash{font-family:"Space Mono",monospace;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--intaglio)}
+  .seal .core .word{font-family:"Space Mono",monospace;font-size:6.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--intaglio-soft)}
+  .verif h3{margin:0 0 6px;font-family:"Fraunces",serif;font-weight:600;font-size:15px}
+  .verif dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-family:"Space Mono",monospace;font-size:10.5px}
+  .verif dt{color:var(--intaglio-soft);letter-spacing:.04em}
+  .verif dd{margin:0;color:var(--intaglio);font-weight:700;letter-spacing:.02em;overflow-wrap:anywhere}
+  .verif dd a{color:var(--verde-lastro);text-decoration:none;border-bottom:1px solid rgba(30,123,69,.4)}
+  .actions{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap}
+  @media(max-width:520px){.actions{justify-content:center}}
+
+  /* microtext / rodapé cartorial */
+  .micro{
+    margin-top:18px;font-family:"Space Mono",monospace;font-size:8.5px;letter-spacing:.06em;
+    color:var(--intaglio-soft);text-transform:uppercase;text-align:center;line-height:1.9;
+    border-top:1px solid var(--linha);padding-top:12px;
+    word-spacing:2px;
+  }
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
+    background:var(--intaglio);color:var(--cedula);
+    font-family:"Space Mono",monospace;font-size:11.5px;letter-spacing:.04em;
+    padding:10px 16px;border-radius:2px;opacity:0;pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease;
+    box-shadow:0 10px 30px -10px rgba(0,0,0,.6);
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media(prefers-reduced-motion:reduce){
+    *{transition:none !important;animation:none !important}
+  }
 </style>
 
-<div class="todo">
-  <b>Esqueleto.</b> Portar o visual de <code>design/lastro-passaporte.html</code> e ligar aos dados.
-  Este placeholder so carrega <code>data/latest.json</code> e a Caderneta de <code>data/laudos/</code>.
-</div>
+<main class="doc" id="doc">
+  <div class="sample-banner">dados de exemplo · rode o lastro-agent para aferir a sua máquina</div>
+  <div class="erro" id="erro"></div>
+  <div class="frame">
 
-<h1 id="modelo">carregando...</h1>
-<div>prognostico: <span class="big" id="prog">--</span></div>
-<div>gargalo: <b id="gargalo">--</b> | base amostral: <span id="base">--</span></div>
+    <!-- cabeçalho -->
+    <header class="top">
+      <div class="mark">
+        <span class="wordmark">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="1" y="1" width="14" height="14" fill="none" stroke="#15251C" stroke-width="1.3"/>
+            <path d="M4 11 L4 4 M4 11 L12 11" fill="none" stroke="#15251C" stroke-width="1.6"/>
+          </svg>
+          Lastro
+        </span>
+        <span class="kicker">Passaporte de saúde do equipamento</span>
+      </div>
+      <div class="serial">
+        SÉRIE <b id="serie">…</b><br>
+        LAUDO <b id="laudoNum">…</b> · v<span id="laudoVer">1</span><br>
+        emissão contínua
+      </div>
+    </header>
 
-<h3>orgaos</h3>
-<pre id="orgaos">--</pre>
+    <div class="rule"></div>
 
-<h3>caderneta (desgaste do SSD por afericao)</h3>
-<pre id="caderneta">--</pre>
+    <!-- identidade -->
+    <section class="ident">
+      <div class="machine">
+        <span id="modelo">carregando…</span>
+        <small id="specs"></small>
+      </div>
+      <div class="emitido">
+        última aferição<br><b id="aferidoEm">…</b><br>
+        <span id="leituraN"></span>
+      </div>
+    </section>
+
+    <!-- a denominação: prognóstico -->
+    <section class="denom">
+      <div class="eyebrow">Prognóstico de vida útil restante</div>
+      <div class="value" id="prog">…</div>
+      <div class="sub" id="progSub"></div>
+      <div class="conf" id="progConf"></div>
+    </section>
+
+    <div class="rule thin"></div>
+
+    <!-- órgãos vitais -->
+    <section>
+      <p class="sec-label">Órgãos vitais · leitura direta do hardware (SMART)</p>
+      <div id="orgaos"></div>
+    </section>
+
+    <div class="rule thin"></div>
+
+    <!-- caderneta + observatório -->
+    <div class="two">
+      <div class="chart">
+        <p class="sec-label">Caderneta</p>
+        <svg id="cadernetaSvg" viewBox="0 0 240 92" role="img" aria-label="Desgaste do gargalo ao longo das aferições."></svg>
+        <p class="cap">cada ponto = <b>1 commit</b> no seu passaporte.<br>o histórico do git <b>é</b> a curva.</p>
+      </div>
+
+      <div class="chart">
+        <p class="sec-label">Observatório</p>
+        <svg id="obsSvg" viewBox="0 0 240 92" role="img" aria-label="Distribuição de desgaste do modelo na frota."></svg>
+        <p class="cap" id="obsCap"></p>
+      </div>
+    </div>
+
+    <div class="rule thin"></div>
+
+    <!-- recomendação-lastro -->
+    <section class="reco" id="reco" hidden>
+      <div class="txt">
+        <h4 id="recoTitle"></h4>
+        <p id="recoBody"></p>
+      </div>
+      <button class="btn" id="simBtn" aria-pressed="false">Simular a troca</button>
+    </section>
+
+    <!-- selo de verificação: a assinatura -->
+    <section class="seal-wrap">
+      <div class="seal" aria-hidden="true">
+        <svg id="guillocheSeal" viewBox="0 0 104 104"></svg>
+        <div class="core">
+          <span class="chk">
+            <svg width="18" height="18" viewBox="0 0 18 18"><path d="M3 9.5 L7 13.5 L15 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span class="hash" id="seloHash">…</span>
+          <span class="word">verificado</span>
+        </div>
+      </div>
+      <div class="verif">
+        <h3>Selo de verificação</h3>
+        <dl>
+          <dt>commit</dt><dd id="seloCommit">…</dd>
+          <dt>carimbo</dt><dd id="seloCarimbo">…</dd>
+          <dt>script</dt><dd id="seloScript">…</dd>
+          <dt>laudos</dt><dd id="seloLaudos">…</dd>
+        </dl>
+        <div class="actions">
+          <button class="btn" id="copyBtn">Copiar link do laudo</button>
+          <button class="btn ghost" id="reBtn">Re-aferir agora</button>
+        </div>
+      </div>
+    </section>
+
+    <p class="micro">
+      Este laudo é um artefato público no GitHub · a autenticidade vem do carimbo temporal do commit, não de nós ·
+      leitura feita por script open-source no seu equipamento · nenhum dado sai sem o seu commit · lastro · lastro · lastro
+    </p>
+
+  </div>
+</main>
+
+<div class="toast" id="toast">link do laudo copiado</div>
 
 <script>
-async function j(url){ const r = await fetch(url); if(!r.ok) throw new Error(url); return r.json(); }
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var SVGNS = "http://www.w3.org/2000/svg";
 
-(async () => {
-  try {
-    // caminhos relativos ao publicar site/ como raiz do Pages; ajustar se publicar o repo inteiro
-    const base = location.pathname.includes('/site/') ? '../data' : 'data';
-    const latest = await j(`${base}/latest.json`);
-
-    document.getElementById('modelo').textContent =
-      `${latest.maquina.modelo} : serie ${latest.serie}`;
-    if (latest.prognostico) {
-      const m = latest.prognostico.meses_restantes;
-      document.getElementById('prog').textContent =
-        `~${Math.floor(m/12)}a ${m%12}m`;
-      document.getElementById('gargalo').textContent = latest.prognostico.gargalo;
-      document.getElementById('base').textContent = latest.prognostico.base_amostral;
+  /* ---------- guilhochê: roseta do selo (hipotrocoide) ---------- */
+  function guilloche(R, r, d, turns, cx, cy, scale){
+    var pts=[], steps=turns*360;
+    for(var i=0;i<=steps;i++){
+      var t=i*Math.PI/180;
+      var x=(R-r)*Math.cos(t)+d*Math.cos((R-r)/r*t);
+      var y=(R-r)*Math.sin(t)-d*Math.sin((R-r)/r*t);
+      pts.push((cx+x*scale).toFixed(2)+","+(cy+y*scale).toFixed(2));
     }
-    document.getElementById('orgaos').textContent = JSON.stringify(latest.orgaos, null, 2);
-
-    // Caderneta: cada laudo do historico e um ponto. TODO: virar sparkline SVG (ver mockup).
-    const datas = ["2026-01-15","2026-02-14","2026-03-16","2026-04-15","2026-05-16","2026-07-03"];
-    const pontos = [];
-    for (const d of datas) {
-      try { const l = await j(`${base}/laudos/${d}.json`); pontos.push(`${d}: SSD ${Math.round(l.orgaos.ssd.desgaste*100)}%`); }
-      catch(e){}
-    }
-    document.getElementById('caderneta').textContent = pontos.join("\n");
-  } catch (e) {
-    document.getElementById('modelo').textContent = "erro ao carregar dados: " + e.message;
+    return pts.join(" ");
   }
+  var seal=$('guillocheSeal');
+  [ {rr:52,c:'#15251C',w:1.4},{rr:47,c:'#1E7B45',w:.9} ].forEach(function(o){
+    var c=document.createElementNS(SVGNS,'circle');
+    c.setAttribute('cx',52);c.setAttribute('cy',52);c.setAttribute('r',o.rr);
+    c.setAttribute('fill','none');c.setAttribute('stroke',o.c);c.setAttribute('stroke-width',o.w);
+    seal.appendChild(c);
+  });
+  [ {p:[44,7,18,7],col:'rgba(21,37,28,.55)',w:.55,s:1.0},
+    {p:[40,9,14,5],col:'rgba(30,123,69,.6)',w:.5,s:1.0} ].forEach(function(g){
+    var pl=document.createElementNS(SVGNS,'polyline');
+    pl.setAttribute('points',guilloche(g.p[0],g.p[1],g.p[2],g.p[3],52,52,g.s));
+    pl.setAttribute('fill','none');pl.setAttribute('stroke',g.col);pl.setAttribute('stroke-width',g.w);
+    seal.appendChild(pl);
+  });
+
+  /* ---------- guilhochê de fundo (data-uri) ---------- */
+  function bgSVG(){
+    var lines="";
+    for(var i=0;i<10;i++){
+      var y=i*34, ph=i*18;
+      var d="M0 "+y;
+      for(var x=0;x<=340;x+=8){
+        d+=" L"+x+" "+(y+Math.sin((x+ph)/22)*7).toFixed(1);
+      }
+      lines+='<path d="'+d+'" fill="none" stroke="%2315251C" stroke-width="0.5" opacity="0.5"/>';
+    }
+    return "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='340' height='340'>"+lines+"</svg>\")";
+  }
+  $('doc').style.setProperty('--guilloche-bg', bgSVG());
+
+  /* ---------- toast ---------- */
+  var toast=$('toast'), tmr;
+  function ping(msg){ toast.textContent=msg; toast.classList.add('show'); clearTimeout(tmr); tmr=setTimeout(function(){toast.classList.remove('show')},2400); }
+
+  /* ---------- utilidades ---------- */
+  var MESES=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  var ORGAOS_META={
+    ssd:     {nome:"SSD",     sub:"desgaste NAND",   rotulo:"o SSD (célula NAND gasta)"},
+    bateria: {nome:"Bateria", sub:"recargas",        rotulo:"a bateria (capacidade em queda)"},
+    memoria: {nome:"Memória", sub:"pressão / swap",  rotulo:"a memória (pressão de swap)"},
+    termico: {nome:"Térmico", sub:"throttling",      rotulo:"o térmico (throttling sustentado)"}
+  };
+  var ESTADOS={saudavel:{cls:"ok",txt:"saudável"},atencao:{cls:"warn",txt:"atenção"},critico:{cls:"bad",txt:"crítico"}};
+
+  function dataPt(iso){
+    var d=new Date(iso);
+    return ("0"+d.getUTCDate()).slice(-2)+" "+MESES[d.getUTCMonth()]+" "+d.getUTCFullYear();
+  }
+  function mesesEntre(isoA,isoB){
+    return (new Date(isoB)-new Date(isoA))/(1000*60*60*24*30.44);
+  }
+  function anosMeses(m){
+    m=Math.round(m);
+    var a=Math.floor(m/12), r=m%12, p=[];
+    if(a) p.push(a+(a===1?" ano":" anos"));
+    if(r||!a) p.push(r+(r===1?" mês":" meses"));
+    return p.join(" e ");
+  }
+  function leituraDo(nome,orgao,ram){
+    if(nome==="ssd") return Math.round(orgao.desgaste*100)+"% gasto";
+    if(nome==="bateria"){
+      var p=[];
+      if(orgao.recargas!=null) p.push(orgao.recargas+" recargas");
+      if(orgao.saude_pct!=null) p.push(Math.round(orgao.saude_pct)+"%");
+      return p.join(" · ")||Math.round(orgao.desgaste*100)+"%";
+    }
+    if(nome==="memoria") return (ram?ram+" GB · ":"")+(orgao.swap_frequente?"swap frequente":"sem swap");
+    if(nome==="termico") return orgao.throttle?"throttle detectado":"sem throttle";
+    return Math.round(orgao.desgaste*100)+"%";
+  }
+
+  /* taxa de desgaste por órgão a partir da caderneta: (último - primeiro) / meses */
+  function taxas(laudos){
+    var t={};
+    if(laudos.length<2) return t;
+    var a=laudos[0], b=laudos[laudos.length-1];
+    var meses=mesesEntre(a.aferido_em,b.aferido_em);
+    if(meses<=0) return t;
+    Object.keys(b.orgaos).forEach(function(n){
+      if(a.orgaos[n]) t[n]=(b.orgaos[n].desgaste-a.orgaos[n].desgaste)/meses;
+    });
+    return t;
+  }
+  function prognosticoSem(laudo,tx,excluir){
+    var melhor=null;
+    Object.keys(laudo.orgaos).forEach(function(n){
+      if(n===excluir||!(tx[n]>0)) return;
+      var rest=(1-laudo.orgaos[n].desgaste)/tx[n];
+      if(!melhor||rest<melhor.meses) melhor={orgao:n,meses:rest};
+    });
+    return melhor;
+  }
+
+  /* ---------- render ---------- */
+  function renderCabecalho(latest,laudos,manifesto){
+    $('serie').textContent=latest.serie;
+    $('laudoNum').textContent="#"+("0000"+laudos.length).slice(-4);
+    $('laudoVer').textContent=latest.versao;
+    $('modelo').textContent=latest.maquina.modelo;
+    var m=latest.maquina, s=[];
+    if(m.cpu&&m.cpu!=="desconhecido") s.push(m.cpu);
+    if(m.ram_gb!=null) s.push(m.ram_gb+" GB");
+    if(m.armazenamento_gb!=null) s.push("SSD "+m.armazenamento_gb+" GB");
+    if(m.comprado_em) s.push("comprado "+m.comprado_em.slice(5,7)+"/"+m.comprado_em.slice(0,4));
+    $('specs').textContent=s.join(" · ");
+    $('aferidoEm').textContent=dataPt(latest.aferido_em);
+    var extensao=laudos.length>1?" · "+anosMeses(mesesEntre(laudos[0].aferido_em,latest.aferido_em))+" de caderneta":"";
+    $('leituraN').textContent=laudos.length+"ª leitura"+extensao;
+    if(manifesto.sample) $('doc').classList.add('sample');
+  }
+
+  function renderPrognostico(latest){
+    var p=latest.prognostico, el=$('prog');
+    if(!p||p.meses_restantes==null){
+      el.classList.add('muted');
+      el.textContent="ainda sem estimativa";
+      $('progSub').textContent="a taxa de desgaste vem da sua caderneta: re-afira em algumas semanas";
+      $('progConf').textContent="prognóstico exige 2 ou mais aferições reais";
+      return;
+    }
+    el.innerHTML='<span class="approx">≈</span> '+anosMeses(p.meses_restantes);
+    var meta=ORGAOS_META[p.gargalo];
+    $('progSub').textContent="no ritmo de uso atual, o gargalo é "+(meta?meta.rotulo:p.gargalo);
+    var conf=[];
+    if(p.base_amostral) conf.push("estimado sobre <b>"+p.base_amostral.toLocaleString("pt-BR")+"</b> máquinas semelhantes no Observatório");
+    else conf.push("estimado da sua própria caderneta");
+    if(p.margem_meses!=null) conf.push("margem ±"+p.margem_meses+" meses");
+    $('progConf').innerHTML=conf.join(" · ");
+  }
+
+  function renderOrgaos(latest){
+    var raiz=$('orgaos'); raiz.innerHTML="";
+    ["ssd","bateria","memoria","termico"].forEach(function(nome){
+      var o=latest.orgaos[nome]; if(!o) return;
+      var meta=ORGAOS_META[nome], st=ESTADOS[o.estado]||ESTADOS.saudavel;
+      var div=document.createElement('div');
+      div.className="organ "+st.cls;
+      div.innerHTML=
+        '<div class="name"></div>'+
+        '<div class="read"></div>'+
+        '<div class="meter"><i style="width:0%"></i></div>';
+      var name=div.firstChild;
+      name.appendChild(document.createTextNode(meta.nome+" "));
+      var span=document.createElement('span'); span.textContent=meta.sub; name.appendChild(span);
+      var tag=document.createElement('em'); tag.className="tag "+st.cls; tag.textContent=st.txt; name.appendChild(tag);
+      div.children[1].textContent=leituraDo(nome,o,latest.maquina.ram_gb);
+      raiz.appendChild(div);
+      requestAnimationFrame(function(){ div.querySelector('.meter i').style.width=(o.desgaste*100)+"%"; });
+    });
+  }
+
+  function renderCaderneta(laudos,gargalo){
+    var svg=$('cadernetaSvg'); svg.innerHTML="";
+    var eixo=document.createElementNS(SVGNS,'line');
+    eixo.setAttribute('x1',6);eixo.setAttribute('y1',82);eixo.setAttribute('x2',234);eixo.setAttribute('y2',82);
+    eixo.setAttribute('stroke','var(--linha)');eixo.setAttribute('stroke-width',1);
+    svg.appendChild(eixo);
+
+    var serie=laudos.map(function(l){ return {t:l.aferido_em, d:(l.orgaos[gargalo]||l.orgaos.ssd).desgaste}; });
+    var n=serie.length;
+    var X=function(i){ return n===1?120:18+i*(204/(n-1)); };
+    var Y=function(d){ return 78-d*66; };
+
+    if(n>1){
+      var pl=document.createElementNS(SVGNS,'polyline');
+      pl.setAttribute('points',serie.map(function(p,i){return X(i).toFixed(1)+","+Y(p.d).toFixed(1);}).join(" "));
+      pl.setAttribute('fill','none');pl.setAttribute('stroke','var(--intaglio)');pl.setAttribute('stroke-width',2);
+      svg.appendChild(pl);
+    }
+    serie.forEach(function(p,i){
+      var c=document.createElementNS(SVGNS,'circle');
+      c.setAttribute('cx',X(i).toFixed(1));c.setAttribute('cy',Y(p.d).toFixed(1));
+      c.setAttribute('r',i===n-1?4:3.2);
+      c.setAttribute('fill',i===n-1?'var(--desgaste)':'var(--cedula)');
+      c.setAttribute('stroke','var(--intaglio)');c.setAttribute('stroke-width',1.6);
+      svg.appendChild(c);
+    });
+    function rotulo(x,iso,anchor){
+      var t=document.createElementNS(SVGNS,'text');
+      t.setAttribute('x',x);t.setAttribute('y',90);
+      if(anchor)t.setAttribute('text-anchor',anchor);
+      t.setAttribute('font-family','Space Mono');t.setAttribute('font-size',8);t.setAttribute('fill','var(--intaglio-soft)');
+      t.textContent=MESES[new Date(iso).getUTCMonth()];
+      svg.appendChild(t);
+    }
+    rotulo(X(0)-4,serie[0].t);
+    if(n>1) rotulo(X(n-1)+4,serie[n-1].t,'end');
+  }
+
+  function renderObservatorio(latest,laudos,obs,gargalo){
+    var svg=$('obsSvg'); svg.innerHTML="";
+    var modelo=obs&&obs.modelos&&obs.modelos[latest.maquina.modelo];
+    var cap=$('obsCap');
+
+    /* sino da frota (forma ilustrativa; média e posição são dados reais) */
+    var sino=document.createElementNS(SVGNS,'path');
+    sino.setAttribute('d','M6 82 C 60 82, 74 22, 120 22 S 180 82, 234 82 Z');
+    sino.setAttribute('fill','rgba(21,37,28,.08)');sino.setAttribute('stroke','var(--linha-forte)');sino.setAttribute('stroke-width',1.4);
+    svg.appendChild(sino);
+    var media=document.createElementNS(SVGNS,'line');
+    media.setAttribute('x1',120);media.setAttribute('y1',30);media.setAttribute('x2',120);media.setAttribute('y2',82);
+    media.setAttribute('stroke','var(--intaglio-soft)');media.setAttribute('stroke-width',1);media.setAttribute('stroke-dasharray','3 3');
+    svg.appendChild(media);
+    var tm=document.createElementNS(SVGNS,'text');
+    tm.setAttribute('x',120);tm.setAttribute('y',20);tm.setAttribute('text-anchor','middle');
+    tm.setAttribute('font-family','Space Mono');tm.setAttribute('font-size',8);tm.setAttribute('fill','var(--intaglio-soft)');
+    tm.textContent='média';
+    svg.appendChild(tm);
+
+    if(!modelo||!modelo.desgaste_ssd_mediano_por_mes){
+      cap.innerHTML="a frota ainda não tem dados deste modelo. cada passaporte público melhora o Observatório.";
+      return;
+    }
+    var tx=taxas(laudos), local=tx[gargalo==="ssd"?"ssd":"ssd"];
+    if(!(local>0)){
+      cap.innerHTML="frota: <b>"+modelo.amostra.toLocaleString("pt-BR")+"</b> máquinas. re-afira para se comparar à média.";
+      return;
+    }
+    var razao=local/modelo.desgaste_ssd_mediano_por_mes;
+    var x=Math.max(30,Math.min(214,120+(razao-1)*250));
+    var cor=razao>1?'var(--vencido)':'var(--verde-lastro)';
+    var lv=document.createElementNS(SVGNS,'line');
+    lv.setAttribute('x1',x);lv.setAttribute('y1',52);lv.setAttribute('x2',x);lv.setAttribute('y2',82);
+    lv.setAttribute('stroke',cor);lv.setAttribute('stroke-width',1.6);
+    svg.appendChild(lv);
+    var cv=document.createElementNS(SVGNS,'circle');
+    cv.setAttribute('cx',x);cv.setAttribute('cy',52);cv.setAttribute('r',4);cv.setAttribute('fill',cor);
+    svg.appendChild(cv);
+    var tv=document.createElementNS(SVGNS,'text');
+    tv.setAttribute('x',x);tv.setAttribute('y',46);tv.setAttribute('text-anchor','middle');
+    tv.setAttribute('font-family','Space Mono');tv.setAttribute('font-size',8);tv.setAttribute('font-weight',700);tv.setAttribute('fill',cor);
+    tv.textContent='você';
+    svg.appendChild(tv);
+
+    var pct=Math.abs(Math.round((razao-1)*100));
+    cap.innerHTML="sua máquina gasta o SSD <b>~"+pct+"% "+(razao>1?"mais rápido":"mais devagar")+
+      "</b> que a média de "+modelo.amostra.toLocaleString("pt-BR")+" máquinas da frota"+
+      (modelo.nota?" · "+modelo.nota:"")+".";
+  }
+
+  function renderReco(latest,laudos){
+    var p=latest.prognostico, sec=$('reco');
+    var tx=taxas(laudos);
+    if(!p||!p.gargalo){ sec.hidden=true; return; }
+    sec.hidden=false;
+    var meta=ORGAOS_META[p.gargalo];
+    var sem=prognosticoSem(latest,tx,p.gargalo);
+    var ganho=sem?anosMeses(sem.meses):"além do horizonte medível";
+    var tituloOrig="Trocar "+(p.gargalo==="ssd"?"o SSD":ORGAOS_META[p.gargalo].nome.toLowerCase())+" devolve anos de vida";
+    var corpoOrig="Zerar o desgaste do gargalo ("+meta.nome+") muda o prognóstico de "+
+      anosMeses(p.meses_restantes)+" para <b>"+(sem?ganho:"o próximo gargalo, ainda sem taxa medida")+"</b>. Simule ao lado.";
+    $('recoTitle').textContent=tituloOrig;
+    $('recoBody').innerHTML=corpoOrig;
+
+    var btn=$('simBtn'), swapped=false;
+    var progEl=$('prog'), subEl=$('progSub');
+    var origProg=progEl.innerHTML, origSub=subEl.textContent;
+    btn.onclick=function(){
+      swapped=!swapped;
+      btn.setAttribute('aria-pressed',String(swapped));
+      if(swapped){
+        if(sem){
+          progEl.innerHTML='<span class="approx">≈</span> '+anosMeses(sem.meses);
+          subEl.textContent="com "+meta.nome+" novo, o próximo gargalo passa a ser "+ (ORGAOS_META[sem.orgao]?ORGAOS_META[sem.orgao].rotulo:sem.orgao);
+        }else{
+          progEl.innerHTML='<span class="approx">≈</span> horizonte aberto';
+          subEl.textContent="com "+meta.nome+" novo, nenhum outro órgão tem taxa de desgaste medida";
+        }
+        $('recoTitle').textContent="Troca simulada · refaça a aferição";
+        $('recoBody').innerHTML="Após instalar a peça, rode o <b>lastro-agent</b> de novo: o próximo commit registra a peça nova e o carimbo de quando entrou. O comprador vê a manutenção no histórico.";
+        btn.textContent="Desfazer simulação";
+      }else{
+        progEl.innerHTML=origProg; subEl.textContent=origSub;
+        $('recoTitle').textContent=tituloOrig;
+        $('recoBody').innerHTML=corpoOrig;
+        btn.textContent="Simular a troca";
+      }
+    };
+  }
+
+  function renderSelo(latest,laudos){
+    $('seloHash').textContent=latest.agente.sha256.slice(0,7);
+    $('seloCarimbo').textContent=latest.aferido_em;
+    $('seloScript').textContent=latest.agente.nome+" v"+latest.agente.versao+" · sha256 "+latest.agente.sha256.slice(0,12)+"…";
+    $('seloLaudos').textContent=laudos.length+" commit"+(laudos.length>1?"s":"")+" · inforjável";
+
+    /* carimbo do commit: só o GitHub pode dar. No Pages, busca o commit real
+       de data/latest.json pela API pública; fora dele, diz a verdade. */
+    var m=location.hostname.match(/^([^.]+)\.github\.io$/);
+    var repo=m?m[1]+"/"+location.pathname.split("/")[1]:null;
+    if(repo){
+      fetch("https://api.github.com/repos/"+repo+"/commits?path=data/latest.json&per_page=1")
+        .then(function(r){ return r.ok?r.json():null; })
+        .then(function(cs){
+          if(!cs||!cs[0]) return;
+          var c=cs[0];
+          $('seloCommit').innerHTML='<a href="'+c.html_url+'" rel="noopener">'+c.sha.slice(0,7)+' · GitHub</a>';
+          $('seloCarimbo').textContent=c.commit.committer.date;
+          $('seloHash').textContent=c.sha.slice(0,7);
+        }).catch(function(){});
+      $('seloCommit').textContent="consultando o GitHub…";
+    }else{
+      $('seloCommit').textContent="publique no GitHub para obter o carimbo";
+    }
+  }
+
+  /* ---------- carga ---------- */
+  var base=location.pathname.indexOf('/site/')>=0?'..':'.';
+  function j(url){ return fetch(url).then(function(r){ if(!r.ok) throw new Error(url+" ("+r.status+")"); return r.json(); }); }
+
+  Promise.all([
+    j(base+"/data/caderneta.json"),
+    j(base+"/data/latest.json"),
+    j(base+"/data/observatorio.json").catch(function(){ return null; })
+  ]).then(function(res){
+    var manifesto=res[0], latest=res[1], obs=res[2];
+    return Promise.all(manifesto.laudos.map(function(n){ return j(base+"/data/laudos/"+n); }))
+      .then(function(laudos){
+        laudos.sort(function(a,b){ return a.aferido_em<b.aferido_em?-1:1; });
+        var gargalo=(latest.prognostico&&latest.prognostico.gargalo)||"ssd";
+        renderCabecalho(latest,laudos,manifesto);
+        renderPrognostico(latest);
+        renderOrgaos(latest);
+        renderCaderneta(laudos,gargalo);
+        renderObservatorio(latest,laudos,obs,gargalo);
+        renderReco(latest,laudos);
+        renderSelo(latest,laudos);
+      });
+  }).catch(function(e){
+    var el=$('erro');
+    el.style.display="block";
+    el.textContent="não consegui carregar o laudo: "+e.message+
+      " · o site renderiza apenas o que está comitado em data/.";
+  });
+
+  /* ---------- ações ---------- */
+  $('copyBtn').addEventListener('click',function(){
+    try{ navigator.clipboard&&navigator.clipboard.writeText(location.href); }catch(e){}
+    ping("link copiado · cole no anúncio");
+  });
+  $('reBtn').addEventListener('click',function(){
+    ping("na sua máquina: python3 agent/lastro_agent.py --emitir --commit");
+  });
 })();
 </script>

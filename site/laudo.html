@@ -692,7 +692,7 @@
   var base=location.pathname.indexOf('/site/')>=0?'..':'.';
   function j(url){ return fetch(url).then(function(r){ if(!r.ok) throw new Error(url+" ("+r.status+")"); return r.json(); }); }
 
-  if(/(^|[?&])verificar([=&]|$)/.test(location.search)) document.body.classList.add('leitor');
+  if(/(^|[?&])certificado([=&]|$)/.test(location.search)) document.body.classList.add('leitor');
 
   Promise.all([
     j(base+"/data/caderneta.json"),
@@ -723,7 +723,7 @@
   /* ---------- ações ---------- */
   $('copyBtn').addEventListener('click',function(){
     var publicado=/\.github\.io$/.test(location.hostname);
-    var url=location.origin+location.pathname+"?verificar";
+    var url=location.origin+location.pathname+"?certificado";
     try{ navigator.clipboard&&navigator.clipboard.writeText(url); }catch(e){}
     ping(publicado?"link do certificado copiado · cole no anúncio"
                   :"link local copiado · publique no GitHub para valer como certificado");
